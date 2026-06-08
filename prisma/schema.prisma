@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+model SystemRole {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  nameFa      String
+  description String?
+  permissions Json     @default("[]")
+  isSystem    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  users       User[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model User {
+  id            String         @id @default(cuid())
+  mobile        String         @unique
+  mobileE164    String         @unique
+  displayName   String?
+  email         String?
+  status        UserStatus     @default(active)
+  systemRoleId  String
+  systemRole    SystemRole     @relation(fields: [systemRoleId], references: [id])
+  isBootstrap   Boolean        @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  sessions      Session[]
+  otpChallenges OtpChallenge[]
+}
+
+model OtpChallenge {
+  id          String    @id @default(cuid())
+  mobileE164  String
+  codeHash    String
+  expiresAt   DateTime
+  resendAfter DateTime
+  attempts    Int       @default(0)
+  consumedAt  DateTime?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime  @default(now())
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([mobileE164, consumedAt])
+  @@index([expiresAt])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}

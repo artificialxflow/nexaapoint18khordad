@@ -40,7 +40,7 @@ export default function LandingPage() {
             </button>
             <a href="#about" className="text-sm font-bold text-gray-500 hover:text-nexa-accent transition-colors">درباره ما</a>
             <button 
-              onClick={() => router.push('/businesses')}
+              onClick={() => router.push('/login')}
               className="px-6 py-2.5 bg-nexa-primary text-white rounded-xl font-bold text-sm shadow-lg shadow-nexa-primary/20 hover:scale-105 transition-all"
             >
               ورود به پنل مدیریت
@@ -69,7 +69,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <button 
-                onClick={() => router.push('/businesses')}
+                onClick={() => router.push('/login')}
                 className="px-10 py-5 bg-nexa-primary text-white rounded-2xl font-black text-lg shadow-2xl shadow-nexa-primary/30 flex items-center justify-center gap-3 hover:scale-105 transition-all"
               >
                 شروع تجربه هوشمند

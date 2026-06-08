@@ -13,11 +13,11 @@ import {
   Info,
 } from 'lucide-react';
 import Logo from '@/src/components/Logo';
+import { useAuth } from '@/src/context/AuthContext';
 import { useBusiness } from '@/src/context/BusinessContext';
 import {
   NEXA_BUSINESS_PLAN_LABELS,
   NEXA_BUSINESS_ROLE_LABELS,
-  NEXA_DEMO_USER_NAME,
 } from '@/src/types/business';
 
 function formatExpiry(iso?: string) {
@@ -37,6 +37,7 @@ function formatExpiry(iso?: string) {
 export default function BusinessListPage() {
   const router = useRouter();
   const { businesses, setActiveBusinessId, removeBusiness } = useBusiness();
+  const { user: authUser } = useAuth();
 
   const enter = (id: string) => {
     setActiveBusinessId(id);
@@ -69,7 +70,7 @@ export default function BusinessListPage() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
         <div>
-          <p className="text-sm text-gray-500">سلام، {NEXA_DEMO_USER_NAME}</p>
+          <p className="text-sm text-gray-500">سلام، {authUser?.displayName ?? 'کاربر'}</p>
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 mt-1">
             لیست کسب‌وکارهای شما
           </h1>

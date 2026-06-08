@@ -42,6 +42,7 @@ import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'motion/react';
 
 import Logo from './Logo';
+import { useAuth } from '@/src/context/AuthContext';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -319,6 +320,7 @@ function isMobileNavActive(
 
 export default function Sidebar({ currentView, onViewChange, isMobileOpen, onClose }: SidebarProps) {
   const router = useRouter();
+  const { logout } = useAuth();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -514,6 +516,7 @@ export default function Sidebar({ currentView, onViewChange, isMobileOpen, onClo
       <motion.div layout className="p-4 border-t border-white/10 shrink-0">
         <button
           type="button"
+          onClick={() => void logout()}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-red-500/10 text-red-400 transition-colors group"
         >
           <LogOut size={20} className="shrink-0" />
