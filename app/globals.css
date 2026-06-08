@@ -1,0 +1,82 @@
+/* Self-hosted Vazirmatn (npm) — avoids next/font/google fetch to fonts.googleapis.com during Docker/CI build */
+@import "@fontsource/vazirmatn/400.css";
+@import "@fontsource/vazirmatn/500.css";
+@import "@fontsource/vazirmatn/600.css";
+@import "@fontsource/vazirmatn/700.css";
+@import "@fontsource/vazirmatn/800.css";
+@import "@fontsource/vazirmatn/900.css";
+
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --color-nexa-primary: #2b2a28;
+  --color-nexa-accent: #ffcd11;
+  --color-nexa-bg: #efede7;
+  --color-nexa-card: #ffffff;
+  --color-nexa-border: rgba(43, 42, 40, 0.08);
+}
+
+@layer base {
+  html {
+    direction: rtl;
+    font-family: var(--font-sans);
+    background-color: var(--color-nexa-bg);
+    color: var(--color-nexa-primary);
+  }
+
+  body {
+    min-height: 100vh;
+    background-color: var(--color-nexa-bg);
+    color: var(--color-nexa-primary);
+  }
+
+  .font-fa-num {
+    font-feature-settings: "ss01";
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+  }
+}
+
+@layer components {
+  .nexa-card {
+    background: var(--color-nexa-card);
+    border: 1px solid var(--color-nexa-border);
+    border-radius: 1rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
+  }
+
+  .nexa-btn-primary {
+    background-color: var(--color-nexa-accent);
+    color: white;
+    padding: 0.5rem 1.5rem;
+    border-radius: 0.75rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .nexa-btn-primary:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+  }
+}
