@@ -19,6 +19,10 @@ export async function createInvite(params: {
   createdById: string;
   expiresInDays?: number;
   note?: string;
+  displayName?: string;
+  credentialMode?: 'self' | 'manual' | 'auto';
+  presetUsername?: string;
+  presetPasswordHash?: string;
 }) {
   const token = generateInviteToken();
   const tokenHash = hashInviteToken(token);
@@ -33,12 +37,21 @@ export async function createInvite(params: {
       createdById: params.createdById,
       expiresAt,
       note: params.note,
+      displayName: params.displayName?.trim() || null,
+      credentialMode: params.credentialMode ?? 'self',
+      presetUsername: params.presetUsername ?? null,
+      presetPasswordHash: params.presetPasswordHash ?? null,
     },
     include: { systemRole: true },
   });
 
   const url = `${getAppBaseUrl()}/invite/${token}`;
-  log.info('invite created', { inviteId: invite.id, role: invite.systemRole.slug, expiresAt });
+  log.info('invite created', {
+    inviteId: invite.id,
+    role: invite.systemRole.slug,
+    credentialMode: invite.credentialMode,
+    expiresAt,
+  });
 
   return { invite, url, rawToken: token };
 }

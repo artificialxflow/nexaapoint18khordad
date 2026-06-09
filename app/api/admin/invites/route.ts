@@ -28,6 +28,8 @@ export async function GET(req: NextRequest) {
         expiresAt: inv.expiresAt,
         usedAt: inv.usedAt,
         note: inv.note,
+        displayName: inv.displayName,
+        credentialMode: inv.credentialMode,
         createdAt: inv.createdAt,
         status: inv.usedAt ? 'used' : inv.expiresAt <= new Date() ? 'expired' : 'pending',
       })),
@@ -41,6 +43,10 @@ const createSchema = z.object({
   systemRoleId: z.string().min(1),
   expiresInDays: z.number().int().positive().max(30).optional(),
   note: z.string().max(200).optional(),
+  displayName: z.string().max(100).optional(),
+  credentialMode: z.enum(['self', 'manual', 'auto']).optional(),
+  username: z.string().optional(),
+  password: z.string().optional(),
 });
 
 export async function POST(req: NextRequest) {

@@ -35,6 +35,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
         expiresAt: invite.expiresAt,
         invitedBy: invite.createdBy.displayName,
         note: invite.note,
+        displayName: invite.displayName,
+        credentialMode: invite.credentialMode,
+        presetUsername: invite.presetUsername,
       },
     });
   } catch (err) {
@@ -43,9 +46,9 @@ export async function GET(_req: NextRequest, context: RouteContext) {
 }
 
 const acceptSchema = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-  displayName: z.string().min(1),
+  username: z.string().optional(),
+  password: z.string().optional(),
+  displayName: z.string().optional(),
 });
 
 export async function POST(req: NextRequest, context: RouteContext) {
@@ -59,16 +62,34 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
     const body = acceptSchema.parse(await req.json());
 
-    const usernameError = validateUsername(body.username);
-    if (usernameError) return jsonError('VALIDATION_ERROR', usernameError, 400);
+    let username: string;
+    let passwordHash: string;
+    let displayName: string;
+    let mustChangePassword = false;
 
-    const passwordError = validatePassword(body.password);
-    if (passwordError) return jsonError('VALIDATION_ERROR', passwordError, 400);
+    if (invite.credentialMode === 'self') {
+      if (!body.username || !body.password || !body.displayName) {
+        return jsonError('VALIDATION_ERROR', 'نام، نام کاربری و رمز عبور الزامی است.', 400);
+      }
+      const usernameError = validateUsername(body.username);
+      if (usernameError) return jsonError('VALIDATION_ERROR', usernameError, 400);
+      const passwordError = validatePassword(body.password);
+      if (passwordError) return jsonError('VALIDATION_ERROR', passwordError, 400);
+      username = normalizeUsername(body.username);
+      passwordHash = await hashPassword(body.password);
+      displayName = body.displayName.trim();
+    } else {
+      if (!invite.presetUsername || !invite.presetPasswordHash) {
+        return jsonError('INVALID_INVITE', 'اطلاعات دعوت ناقص است.', 410);
+      }
+      username = invite.presetUsername;
+      passwordHash = invite.presetPasswordHash;
+      displayName = (invite.displayName ?? body.displayName ?? username).trim();
+      mustChangePassword = invite.credentialMode === 'auto';
+    }
 
-    const existing = await findUserByUsername(body.username);
+    const existing = await findUserByUsername(username);
     if (existing) return jsonError('USERNAME_TAKEN', 'این نام کاربری قبلاً ثبت شده است.', 409);
-
-    const passwordHash = await hashPassword(body.password);
 
     const user = await prisma.$transaction(async (tx) => {
       const fresh = await tx.inviteToken.findUnique({ where: { id: invite.id } });
@@ -78,12 +99,13 @@ export async function POST(req: NextRequest, context: RouteContext) {
 
       const created = await tx.user.create({
         data: {
-          username: normalizeUsername(body.username),
+          username,
           passwordHash,
-          displayName: body.displayName.trim(),
+          displayName,
           systemRoleId: invite.systemRoleId,
           createdById: invite.createdById,
           status: 'active',
+          mustChangePassword,
         },
         include: { systemRole: true },
       });
@@ -96,7 +118,11 @@ export async function POST(req: NextRequest, context: RouteContext) {
       return created;
     });
 
-    log.info('invite accepted', { inviteId: invite.id, userId: user.id });
+    log.info('invite accepted', {
+      inviteId: invite.id,
+      userId: user.id,
+      credentialMode: invite.credentialMode,
+    });
     return jsonOk({ user: serializeAuthUser(user) }, { status: 201 });
   } catch (err) {
     if (err instanceof Error && err.message === 'INVALID_INVITE') {

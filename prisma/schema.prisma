@@ -13,6 +13,12 @@ enum UserStatus {
   disabled
 }
 
+enum InviteCredentialMode {
+  self
+  manual
+  auto
+}
+
 model SystemRole {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -65,15 +71,19 @@ model Session {
 }
 
 model InviteToken {
-  id           String    @id @default(cuid())
-  tokenHash    String    @unique
-  systemRoleId String
-  createdById  String
-  expiresAt    DateTime
-  usedAt       DateTime?
-  usedByUserId String?
-  note         String?
-  createdAt    DateTime  @default(now())
+  id                 String               @id @default(cuid())
+  tokenHash          String               @unique
+  systemRoleId       String
+  createdById        String
+  expiresAt          DateTime
+  usedAt             DateTime?
+  usedByUserId       String?
+  note               String?
+  displayName        String?
+  credentialMode     InviteCredentialMode @default(self)
+  presetUsername     String?
+  presetPasswordHash String?
+  createdAt          DateTime             @default(now())
 
   systemRole SystemRole @relation(fields: [systemRoleId], references: [id])
   createdBy  User       @relation("InviteCreatedBy", fields: [createdById], references: [id])

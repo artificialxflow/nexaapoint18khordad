@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:auth": "tsx scripts/auth-smoke.ts"
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.2.8",
