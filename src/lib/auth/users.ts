@@ -1,20 +1,35 @@
 import { prisma } from '@/src/lib/db/prisma';
-import { normalizeMobile } from '@/src/lib/auth/mobile';
-import { logAuth } from '@/src/lib/logger';
 
-export async function findUserByMobile(mobileInput: string) {
-  const { mobile, mobileE164 } = normalizeMobile(mobileInput);
-  return prisma.user.findFirst({
-    where: { OR: [{ mobile }, { mobileE164 }] },
+export async function findUserByUsername(username: string) {
+  return prisma.user.findUnique({
+    where: { username: username.trim().toLowerCase() },
     include: { systemRole: true },
   });
 }
 
-export async function requireExistingUser(mobileInput: string) {
-  const user = await findUserByMobile(mobileInput);
-  if (!user) {
-    logAuth.warn('user not found for mobile');
-    return null;
+export async function findUserById(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    include: { systemRole: true },
+  });
+}
+
+export function normalizeUsername(username: string): string {
+  return username.trim().toLowerCase();
+}
+
+export function validateUsername(username: string): string | null {
+  const normalized = normalizeUsername(username);
+  if (normalized.length < 3 || normalized.length > 32) {
+    return 'نام کاربری باید بین ۳ تا ۳۲ کاراکتر باشد.';
   }
-  return user;
+  if (!/^[a-z0-9._-]+$/.test(normalized)) {
+    return 'نام کاربری فقط حروف انگلیسی کوچک، عدد، نقطه، خط تیره و زیرخط مجاز است.';
+  }
+  return null;
+}
+
+export function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'رمز عبور باید حداقل ۸ کاراکتر باشد.';
+  return null;
 }

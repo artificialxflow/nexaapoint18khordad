@@ -1,101 +1,106 @@
 import { createHash, randomBytes } from 'crypto';
+import type { NextRequest } from 'next/server';
 import type { SystemRole, User } from '@prisma/client';
-import { getAuthConfig, isProduction } from '@/src/lib/auth/config';
 import { prisma } from '@/src/lib/db/prisma';
-import { logAuth } from '@/src/lib/logger';
+import { getAuthConfig } from '@/src/lib/auth/config';
+import { createLogger } from '@/src/lib/logger';
+
+const log = createLogger('session');
 
 export type SessionUser = User & { systemRole: SystemRole };
 
-const TOKEN_BYTES = 32;
-
 function hashToken(token: string): string {
-  const secret = getAuthConfig().OTP_SIGNING_SECRET;
-  return createHash('sha256').update(`${secret}:session:${token}`).digest('hex');
+  const secret = getAuthConfig().AUTH_SESSION_SECRET;
+  return createHash('sha256').update(`${token}:${secret}`).digest('hex');
 }
 
-export function getSessionCookieName(): string {
-  return getAuthConfig().AUTH_SESSION_COOKIE;
+function sessionExpiryDate(): Date {
+  const { AUTH_SESSION_TTL_DAYS } = getAuthConfig();
+  const d = new Date();
+  d.setDate(d.getDate() + AUTH_SESSION_TTL_DAYS);
+  return d;
 }
 
-export function buildSessionCookie(token: string, expiresAt: Date): string {
-  const name = getSessionCookieName();
-  const maxAge = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
-  const parts = [
-    `${name}=${token}`,
-    'Path=/',
-    'HttpOnly',
-    'SameSite=Lax',
-    `Max-Age=${maxAge}`,
-  ];
-  if (isProduction()) parts.push('Secure');
-  return parts.join('; ');
-}
-
-export function buildClearSessionCookie(): string {
-  const name = getSessionCookieName();
-  const parts = [`${name}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];
-  if (isProduction()) parts.push('Secure');
-  return parts.join('; ');
-}
-
-export function readSessionTokenFromCookieHeader(cookieHeader: string | null): string | null {
-  if (!cookieHeader) return null;
-  const name = getSessionCookieName();
-  for (const part of cookieHeader.split(';')) {
-    const [key, ...rest] = part.trim().split('=');
-    if (key === name && rest.length) return rest.join('=');
-  }
-  return null;
+export function generateSessionToken(): string {
+  return randomBytes(32).toString('hex');
 }
 
 export async function createSession(
   userId: string,
-  ip?: string | null,
-  userAgent?: string | null
-): Promise<{ token: string; expiresAt: Date; cookie: string }> {
-  const cfg = getAuthConfig();
-  const token = randomBytes(TOKEN_BYTES).toString('hex');
-  const expiresAt = new Date(Date.now() + cfg.AUTH_SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  req?: Pick<NextRequest, 'headers'>
+): Promise<{ token: string; expiresAt: Date }> {
+  const token = generateSessionToken();
+  const tokenHash = hashToken(token);
+  const expiresAt = sessionExpiryDate();
 
   await prisma.session.create({
     data: {
       userId,
-      tokenHash: hashToken(token),
+      tokenHash,
       expiresAt,
-      ip: ip ?? undefined,
-      userAgent: userAgent ?? undefined,
+      ip: req?.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? req?.headers.get('x-real-ip') ?? undefined,
+      userAgent: req?.headers.get('user-agent') ?? undefined,
     },
   });
 
-  logAuth.info('session created', { userId, expiresAt: expiresAt.toISOString() });
-
-  return { token, expiresAt, cookie: buildSessionCookie(token, expiresAt) };
+  log.info('session created', { userId, expiresAt: expiresAt.toISOString() });
+  return { token, expiresAt };
 }
 
-export async function getSessionUser(token: string | null): Promise<SessionUser | null> {
-  if (!token) return null;
+export function buildSessionCookie(token: string, expiresAt: Date): string {
+  const { AUTH_SESSION_COOKIE, AUTH_COOKIE_SECURE } = getAuthConfig();
+  const parts = [
+    `${AUTH_SESSION_COOKIE}=${token}`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    `Expires=${expiresAt.toUTCString()}`,
+  ];
+  if (AUTH_COOKIE_SECURE) parts.push('Secure');
+  return parts.join('; ');
+}
+
+export function buildClearSessionCookie(): string {
+  const { AUTH_SESSION_COOKIE } = getAuthConfig();
+  return `${AUTH_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+export function getSessionTokenFromRequest(req: NextRequest): string | null {
+  const { AUTH_SESSION_COOKIE } = getAuthConfig();
+  return req.cookies.get(AUTH_SESSION_COOKIE)?.value ?? null;
+}
+
+export async function getSessionUserFromRequest(req: NextRequest): Promise<SessionUser | null> {
+  const raw = getSessionTokenFromRequest(req);
+  if (!raw) return null;
+
+  const tokenHash = hashToken(raw);
   const session = await prisma.session.findUnique({
-    where: { tokenHash: hashToken(token) },
+    where: { tokenHash },
     include: { user: { include: { systemRole: true } } },
   });
+
   if (!session) return null;
-  if (session.expiresAt < new Date()) {
-    await prisma.session.delete({ where: { id: session.id } });
-    logAuth.info('session expired', { sessionId: session.id });
+  if (session.expiresAt <= new Date()) {
+    await prisma.session.delete({ where: { id: session.id } }).catch(() => undefined);
+    log.info('session expired', { userId: session.userId });
     return null;
   }
+
+  if (session.user.status !== 'active') return null;
   return session.user;
 }
 
-export async function destroySession(token: string | null): Promise<void> {
-  if (!token) return;
-  const hash = hashToken(token);
-  const deleted = await prisma.session.deleteMany({ where: { tokenHash: hash } });
-  logAuth.info('session destroyed', { count: deleted.count });
+export async function destroySessionFromRequest(req: NextRequest): Promise<void> {
+  const raw = getSessionTokenFromRequest(req);
+  if (!raw) return;
+  const tokenHash = hashToken(raw);
+  await prisma.session.deleteMany({ where: { tokenHash } });
+  log.info('session destroyed');
 }
 
-export function getClientMeta(req: Request): { ip: string | null; userAgent: string | null } {
-  const forwarded = req.headers.get('x-forwarded-for');
-  const ip = forwarded?.split(',')[0]?.trim() ?? req.headers.get('x-real-ip');
-  return { ip: ip ?? null, userAgent: req.headers.get('user-agent') };
+export async function requireSessionUser(req: NextRequest): Promise<SessionUser> {
+  const user = await getSessionUserFromRequest(req);
+  if (!user) throw new Error('UNAUTHORIZED');
+  return user;
 }

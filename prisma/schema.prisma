@@ -10,67 +10,75 @@ datasource db {
 
 enum UserStatus {
   active
-  inactive
+  disabled
 }
 
 model SystemRole {
   id          String   @id @default(cuid())
-  key         String   @unique
+  slug        String   @unique
   nameFa      String
-  description String?
-  permissions Json     @default("[]")
+  level       Int
+  permissions Json
   isSystem    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  users       User[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  users        User[]
+  inviteTokens InviteToken[]
 }
 
 model User {
-  id            String         @id @default(cuid())
-  mobile        String         @unique
-  mobileE164    String         @unique
-  displayName   String?
-  email         String?
-  status        UserStatus     @default(active)
-  systemRoleId  String
-  systemRole    SystemRole     @relation(fields: [systemRoleId], references: [id])
-  isBootstrap   Boolean        @default(false)
-  lastLoginAt   DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  sessions      Session[]
-  otpChallenges OtpChallenge[]
-}
+  id                 String     @id @default(cuid())
+  username           String     @unique
+  passwordHash       String
+  displayName        String
+  status             UserStatus @default(active)
+  systemRoleId       String
+  createdById        String?
+  mustChangePassword Boolean    @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
-model OtpChallenge {
-  id          String    @id @default(cuid())
-  mobileE164  String
-  codeHash    String
-  expiresAt   DateTime
-  resendAfter DateTime
-  attempts    Int       @default(0)
-  consumedAt  DateTime?
-  ip          String?
-  userAgent   String?
-  createdAt   DateTime  @default(now())
-  userId      String?
-  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  systemRole SystemRole @relation(fields: [systemRoleId], references: [id])
+  createdBy  User?      @relation("UserCreatedBy", fields: [createdById], references: [id])
+  createdUsers User[]   @relation("UserCreatedBy")
 
-  @@index([mobileE164, consumedAt])
-  @@index([expiresAt])
+  sessions          Session[]
+  invitesCreated    InviteToken[] @relation("InviteCreatedBy")
+  invitesConsumed   InviteToken[] @relation("InviteUsedBy")
 }
 
 model Session {
   id        String   @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   tokenHash String   @unique
   expiresAt DateTime
   ip        String?
   userAgent String?
   createdAt DateTime @default(now())
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
   @@index([expiresAt])
+}
+
+model InviteToken {
+  id           String    @id @default(cuid())
+  tokenHash    String    @unique
+  systemRoleId String
+  createdById  String
+  expiresAt    DateTime
+  usedAt       DateTime?
+  usedByUserId String?
+  note         String?
+  createdAt    DateTime  @default(now())
+
+  systemRole SystemRole @relation(fields: [systemRoleId], references: [id])
+  createdBy  User       @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  usedBy     User?      @relation("InviteUsedBy", fields: [usedByUserId], references: [id])
+
+  @@index([expiresAt])
+  @@index([createdById])
 }

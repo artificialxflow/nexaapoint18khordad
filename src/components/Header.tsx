@@ -4,8 +4,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Bell, User, Menu, ChevronDown, Building2 } from 'lucide-react';
 import Logo from './Logo';
-import { useAuth } from '@/src/context/AuthContext';
 import { useBusiness } from '@/src/context/BusinessContext';
+import { useAuth } from '@/src/context/AuthContext';
 
 interface HeaderProps {
   onMenuOpen: () => void;
@@ -13,8 +13,8 @@ interface HeaderProps {
 
 export default function Header({ onMenuOpen }: HeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   const { activeBusiness, businesses, setActiveBusinessId } = useBusiness();
-  const { user: authUser } = useAuth();
   const [bizOpen, setBizOpen] = useState(false);
   const bizRef = useRef<HTMLDivElement>(null);
 
@@ -111,10 +111,10 @@ export default function Header({ onMenuOpen }: HeaderProps) {
         <div className="flex items-center gap-2 md:gap-3 pl-1 md:pl-2 cursor-pointer hover:bg-gray-50 p-1 md:p-1.5 rounded-2xl transition-colors min-w-0">
           <div className="text-left hidden xs:block">
             <p className="text-xs md:text-sm font-bold text-gray-900 truncate max-w-[100px] md:max-w-none">
-              {authUser?.displayName ?? 'کاربر'}
+              {user?.displayName ?? 'کاربر'}
             </p>
             <p className="text-[8px] md:text-[10px] text-gray-500 uppercase tracking-wider font-medium">
-              {authUser?.role.nameFa ?? '—'}
+              {user?.systemRole.nameFa ?? '—'}
             </p>
           </div>
           <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl bg-nexa-accent/10 flex items-center justify-center text-nexa-accent shrink-0">

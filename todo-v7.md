@@ -1,488 +1,508 @@
-# NexaApp — TODO v7 (احراز هویت · OTP/SMS · PostgreSQL · Prisma · نقش‌ها)
+# NexaApp — TODO v7 (احراز هویت · PostgreSQL · Prisma · مدیریت کاربر)
 
-**تاریخ:** ۱۴۰۵/۰۳/۱۸  
-**وضعیت:** ✅ فاز ۰–۵ · 🔶 فاز ۶ (deploy/production)  
-**پایه انجام‌شده:** [`todo-v6.md`](todo-v6.md) (ارتباطات یکپارچه — فرانت ✅)  
-**env:** [`.env.example`](.env.example) · Postgres (`DATABASE_URL` داخلی + `DIRECT_URL` عمومی) · sms.ir  
-> **بروز ۱۴۰۵/۰۳/۱۸:** پیاده‌سازی فاز ۰–۵ انجام شد. **لوکال:** `DATABASE_URL` باید برابر `DIRECT_URL` (public) باشد — hostname internal از PC در دسترس نیست.
+**تاریخ:** ۱۴۰۵/۰۳/۱۹  
+**پایه انجام‌شده:** [`todo-v6.md`](todo-v6.md) (فرانت Meizito/ERP mock) · Nextcloud API routes  
+**مرجع خواسته:** گفتگوی v7 — login با username/password، بدون SMS/ایمیل، bootstrap ادمین، دعوت لینکی، RBAC سلسله‌مراتبی
 
+> **قانون طلایی v7:** هر فاز **اول لوکال** (`dev` + `build` + تست دستی/API) → باگ‌گیری → سپس `git push` → Coolify از GitHub deploy می‌گیرد. **بدون تست لوکال، push ممنوع.**
 
-## قرارداد اسکوپ — v7
+---
+
+## قرارداد اسکوپ v7
 
 | داخل v7 | خارج از v7 |
 |---------|------------|
-| Prisma + PostgreSQL (User, Role, Session, OtpChallenge) | tenant کسب‌وکار در DB (هنوز localStorage) |
-| OTP via sms.ir (`/v1/send/verify`) | WebSocket / push |
-| API Routes: send · verify · logout · me | CRUD کامل AccessControl از UI |
-| صفحه `/login` + `middleware.ts` | sync Meizito mock users با DB |
-| Session cookie `httpOnly` | permission روی هر view ERP |
-| seed نقش‌های سیستم + super admin bootstrap | auto-register هر شماره جدید |
-| logger ساختاریافته (`[auth]` `[otp]` `[sms]` `[db]`) | Redis (OTP در Postgres کافی است) |
-| یکپارچه‌سازی: Header · Sidebar logout · `/businesses` | i18n |
+| Prisma + PostgreSQL (User, Role, Session, Invite) | OTP / SMS.ir / ایمیل / magic link خارجی |
+| Next.js API Routes (`app/api/auth/*`, `app/api/admin/*`) | سرویس auth جدا (Keycloak, Auth0, …) |
+| Session با HttpOnly cookie | JWT در localStorage |
+| Seed کاربر bootstrap + نقش‌های سیستم | ثبت‌نام عمومی (self-signup بدون دعوت) |
+| پنل مدیریت کاربر داخل اپ | forgot-password خودکار با ایمیل |
+| لینک دعوت یک‌بارمصرف (share متنی) | ارسال خودکار SMS/Email برای دعوت |
+| Logger ساخت‌یافته (`[auth]`, `[db]`, `[admin]`, `[invite]`) | Sentry/observability (اختیاری بعداً) |
+| Middleware محافظت route | SSO سازمانی |
 
-### تصمیم کلیدی — ثبت‌نام
+### تصمیم‌های کلیدی
 
-| حالت | رفتار v7 |
-|------|----------|
-| `09126723365` + OTP `000000` (bootstrap) | ✅ login — نقش **مدیر کل** |
-| OTP عادی + کاربر موجود در DB | ✅ login |
-| OTP عادی + کاربر **وجود ندارد** | ❌ خطا — «دسترسی ندارید» (بدون auto-register) |
-| سایر شماره‌ها با `000000` | ❌ رد |
-
-> bootstrap فقط با `ALLOW_BOOTSTRAP_OTP=true` فعال است؛ در production واقعی غیرفعال شود.
-
-### تفکیم «نقش» در پروژه (حفظ شود)
-
-| لایه | مدل فعلی | v7 |
-|------|----------|-----|
-| **سیستم (RBAC)** | mock در `AccessControlSection` | ✅ `SystemRole` در DB |
-| **tenant** | `NexaBusinessRole` در localStorage | ⏸️ v8 |
-| **میز کار** | `MeizitoMockUserRole` | ⏸️ v8 — سوئیچ mock باقی بماند |
+| موضوع | تصمیم |
+|-------|--------|
+| **ورود bootstrap** | username: `artificialxflow` · password: `Ronak#123Ronak` — فقط در **`prisma/seed.ts`** (hash bcrypt)، **نه** env و **نه** bypass در runtime auth |
+| **DATABASE_URL** | internal (روی Coolify/Runflare) · **DIRECT_URL** public (migrate/seed از لوکال) |
+| **لینک دعوت** | `{NEXT_PUBLIC_APP_URL}/invite/{token}` — token فقط hash در DB |
+| **ریست پسورد** | فقط ادمین/مدیر مجاز از پنل — کاربر به ادمین اطلاع می‌دهد |
+| **سلسله‌مراتب نقش** | `super_admin` → `admin` → نقش‌های عملیاتی (`sales`, `finance`, …) — مدیر نتواند نقش بالاتر از خودش بسازد |
+| **Meizito mock users** | فاز ۷+: map تدریجی به User واقعی — فاز ۱–۶ mock ERP دست نخورده |
 
 ---
 
-## env — متغیرهای مورد استفاده v7
+## متغیرهای محیط (`.env.example` / Coolify)
 
-| متغیر | نقش |
-|--------|-----|
-| `DATABASE_URL` | Postgres **internal** — runtime Prisma |
-| `DIRECT_URL` | Postgres **public** — `prisma migrate` |
-| `SMS_IR_API_KEY` | هدر `X-API-KEY` (فقط سرور) |
-| `SMS_IR_TEMPLATE_ID` | قالب OTP (مثلاً `789138`) |
-| `SMS_IR_SANDBOX` | `true` = تست بدون SMS واقعی |
-| `SMS_IR_TEMPLATE_PARAM` | نام پارامتر قالب (معمولاً `Code`) |
-| `OTP_TTL_SECONDS` | انقضای challenge |
-| `OTP_RESEND_SECONDS` | فاصله ارسال مجدد |
-| `OTP_MAX_ATTEMPTS` | سقف verify |
-| `OTP_SIGNING_SECRET` | hash OTP + امضای session |
-| `AUTH_SESSION_COOKIE` | نام cookie (پیش‌فرض: `nexa_session`) |
-| `AUTH_SESSION_TTL_DAYS` | عمر session |
-| `BOOTSTRAP_MOBILE` | `09126723365` |
-| `BOOTSTRAP_OTP` | `000000` |
-| `ALLOW_BOOTSTRAP_OTP` | فعال‌سازی bypass |
-| `LOG_LEVEL` | `debug` \| `info` \| `warn` \| `error` |
-| `NEXT_PUBLIC_APP_URL` | redirect + cookie secure |
+| متغیر | الزامی | توضیح |
+|-------|--------|--------|
+| `DATABASE_URL` | ✅ | Postgres داخل شبکه deploy |
+| `DIRECT_URL` | ✅ | Postgres public — migrate/seed لوکال |
+| `AUTH_SESSION_SECRET` | ✅ | امضای session (طولانی، random) |
+| `AUTH_SESSION_COOKIE` | ⬜ | پیش‌فرض: `nexa_session` |
+| `AUTH_SESSION_TTL_DAYS` | ⬜ | پیش‌فرض: `14` |
+| `NEXT_PUBLIC_APP_URL` | ✅ | پایه URL دعوت (مثلاً sslip.io یا دامنه نهایی) |
+| `LOG_LEVEL` | ⬜ | `debug` لوکال · `info` production |
+| ~~SMS_IR_*~~ / ~~OTP_*~~ | ❌ | v7 استفاده نمی‌کند — از `.env.example` حذف یا comment |
+
+> **امنیت:** `.env.production` با secret واقعی **commit نشود**. فقط `.env.example` + env در Coolify.
 
 ---
 
-## Prisma — مدل داده (پیش‌نویس)
+## Prisma — مدل‌های پیشنهادی
 
-**فایل:** [`prisma/schema.prisma`](prisma/schema.prisma)
+```
+SystemRole     id, slug (unique), nameFa, level, permissions (Json), isSystem
+User           id, username (unique), passwordHash, displayName, status, systemRoleId,
+               createdById, mustChangePassword, lastLoginAt, createdAt, updatedAt
+Session        id, userId, tokenHash (unique), expiresAt, ip, userAgent, createdAt
+InviteToken    id, tokenHash (unique), systemRoleId, createdById, expiresAt,
+               usedAt, usedByUserId, note (optional)
+```
 
-| Model | فیلدهای کلیدی |
-|-------|----------------|
-| `SystemRole` | `key`, `nameFa`, `permissions` (Json), `isSystem` |
-| `User` | `mobile`, `mobileE164` (unique), `systemRoleId`, `status`, `isBootstrap`, `lastLoginAt` |
-| `OtpChallenge` | `mobileE164`, `codeHash`, `expiresAt`, `resendAfter`, `attempts`, `consumedAt` |
-| `Session` | `userId`, `tokenHash`, `expiresAt`, `ip`, `userAgent` |
-
-**Seed:**
-
-- نقش‌ها: `super_admin`, `sales`, `production_manager`, `designer`, `finance_manager` (برچسب فارسی از UI فعلی)
-- کاربر bootstrap: `09126723365` → `super_admin`, `displayName`: مدیر کل, `isBootstrap: true`
+**Enum:** `UserStatus` = `active` | `disabled`
 
 ---
 
-## ساختار فایل‌های جدید
+## ساختار فایل‌های جدید (پیش‌بینی)
 
-```text
+```
 prisma/
   schema.prisma
   seed.ts
   migrations/
+
 src/lib/
   db/prisma.ts
   logger.ts
-  auth/config.ts
-  auth/mobile.ts
-  auth/otp.ts
-  auth/session.ts
-  sms/smsIrClient.ts
-app/
-  login/page.tsx
-  api/auth/otp/send/route.ts
-  api/auth/otp/verify/route.ts
-  api/auth/logout/route.ts
-  api/auth/me/route.ts
+  auth/
+    config.ts          # zod env
+    password.ts        # bcrypt hash/verify
+    session.ts         # create/destroy/get session + Set-Cookie
+    rbac.ts            # hasPermission, canManageRole, isSuperAdmin
+    api.ts             # jsonOk, jsonError, handleRouteError
+    users.ts           # findByUsername, requireUser
+    invites.ts         # create/validate/consume invite
+
+app/api/auth/
+  login/route.ts
+  logout/route.ts
+  me/route.ts
+
+app/api/admin/users/
+  route.ts             # GET list, POST create
+  [id]/route.ts        # PATCH update, disable
+  [id]/reset-password/route.ts
+
+app/api/admin/invites/
+  route.ts             # GET list, POST create
+  [id]/revoke/route.ts
+
+app/api/invite/
+  [token]/route.ts     # GET validate · POST accept (username+password)
+
+app/login/page.tsx
+app/invite/[token]/page.tsx
+
 middleware.ts
+
 src/context/AuthContext.tsx
+src/views/admin/UsersAdminSection.tsx   # یا زیر Settings
 ```
 
 ---
 
-## وضعیت پایه (قبل از v7)
+## استراتژی لاگ
 
-| قابلیت | وضعیت |
-|--------|--------|
-| env (DB, SMS, OTP) | ✅ |
-| Prisma / migration | ✅ |
-| API auth | ✅ |
-| `/login` | ✅ |
-| `middleware` | ✅ |
-| Session واقعی | ✅ |
-| ورود فعلی | OTP + session + انتخاب کسب‌وکار |
-| `AccessControlSection` | mock UI |
-| Nextcloud API | ✅ (بدون تغییر v7) |
+| prefix | محل | چه چیزی |
+|--------|-----|---------|
+| `[auth]` | login/logout/me | username (نه password)، userId، نتیجه |
+| `[session]` | session.ts | create/destroy/expired (نه token خام) |
+| `[db]` | prisma errors | operation، کد خطا |
+| `[admin]` | user CRUD | actorId، targetId، action |
+| `[invite]` | invite flow | inviteId، role، used/expired/revoked |
+| `[middleware]` | middleware | path، unauthenticated redirect |
+
+**هرگز لاگ نشود:** password، token session، token invite خام، `DATABASE_URL`
+
+---
+
+## جریان کار Git / Coolify
+
+```
+[لوکال] npm run dev → تست → npm run build → prisma migrate dev (در صورت نیاز)
+    ↓
+git add . → git commit → git push origin main
+    ↓
+[Coolify] auto deploy از GitHub
+    ↓
+Release command: npx prisma migrate deploy && npx prisma db seed
+    ↓
+تست production: /login با artificialxflow
+```
 
 ---
 
 ## وضعیت اجرا v7
 
-| بلوک | وضعیت |
-|------|--------|
-| فاز ۰ — آماده‌سازی Prisma + logger + env | ✅ |
-| فاز ۱ — schema · migrate · seed | ✅ |
-| فاز ۲ — OTP + sms.ir | ✅ |
-| فاز ۳ — API Routes + session | ✅ |
-| فاز ۴ — UI login + middleware | ✅ |
-| فاز ۵ — نقش‌ها + یکپارچه‌سازی UI | ✅ |
-| فاز ۶ — QA · deploy · acceptance | 🔶 |
+| فاز | عنوان | وضعیت |
+|-----|--------|--------|
+| ۰ | آماده‌سازی · env · logger · Prisma setup | ✅ |
+| ۱ | Schema · migrate · seed bootstrap | ✅ |
+| ۲ | Auth core · password · session · config | ✅ |
+| ۳ | API login/logout/me | ✅ |
+| ۴ | Login UI · middleware · AuthContext | ✅ |
+| ۵ | Admin — CRUD کاربر · ریست پسورد · RBAC | ✅ |
+| ۶ | Invite link — API + UI `/invite/[token]` | ✅ |
+| ۷ | یکپارچه‌سازی Header/Sidebar/Landing | ✅ |
+| ۸ | QA لوکال · build · regression | ✅ |
+| ۹ | push · Coolify · migrate/seed production · پذیرش | ⬜ |
 
 ---
 
 # فاز ۰ — آماده‌سازی
 
-**هدف:** وابستگی‌ها، singleton DB، logger، validate env — بدون UI.
+**هدف:** وابستگی‌ها، env، logger، prisma generate — baseline build سبز.
 
-**برآورد:** ۰.۵ روز
+### ۰.۱ وابستگی‌ها و اسکریپت‌ها
 
-### ۰.۱ وابستگی‌ها
+- [ ] نصب: `prisma`, `@prisma/client`, `zod`, `bcryptjs`, `@types/bcryptjs`
+- [ ] `package.json` scripts: `postinstall`, `db:migrate`, `db:deploy`, `db:seed`, `db:studio`
+- [ ] `prisma.seed` → `tsx prisma/seed.ts` (devDependency: `tsx`)
+- [ ] Tailwind/TypeScript در `dependencies` اگر build production-only است (در صورت نیاز Coolify)
 
-- [x] `npm install prisma @prisma/client --save`
-- [x] `npm install zod --save` (validate env)
-- [x] `npx prisma init`
+### ۰.۲ env
 
-### ۰.۲ اسکریپت‌های package.json
+- [ ] بروزرسانی `.env.example` (DATABASE_URL, DIRECT_URL, AUTH_*, NEXT_PUBLIC_APP_URL, LOG_LEVEL)
+- [ ] حذف/comment متغیرهای SMS/OTP از `.env.example`
+- [ ] `.env.local` لوکال: `DATABASE_URL` = `DIRECT_URL` برای seed از ماشین dev
+- [ ] تأیید `.gitignore` شامل `.env`, `.env.local`, `.env.production`
 
-- [x] `"postinstall": "prisma generate"`
-- [x] `"db:migrate": "prisma migrate dev"`
-- [x] `"db:deploy": "prisma migrate deploy"`
-- [x] `"db:seed": "prisma db seed"`
-- [x] `"db:studio": "prisma studio"`
+### ۰.۳ Logger
 
-### ۰.۳ prisma seed config
+- [ ] `src/lib/logger.ts` — سطوح debug/info/warn/error + prefix + mask username
 
-- [x] در `package.json`: `"prisma": { "seed": "tsx prisma/seed.ts" }` یا `ts-node`
-- [x] devDependency: `tsx` (در صورت نیاز)
+### ۰.۴ Baseline
 
-### ۰.۴ فایل‌های هسته
+- [ ] `npm install` لوکال
+- [ ] `npm run build` — قبل از auth باید سبز باشد
 
-- [x] [`src/lib/db/prisma.ts`](src/lib/db/prisma.ts) — singleton (جلوگیری از hot-reload duplicate)
-- [x] [`src/lib/logger.ts`](src/lib/logger.ts) — `debug|info|warn|error` + prefix + mask mobile
-- [x] [`src/lib/auth/config.ts`](src/lib/auth/config.ts) — Zod parse env؛ throw واضح اگر DB/SMS ناقص
-
-### ۰.۵ به‌روزرسانی `.env.example`
-
-- [x] `SMS_IR_TEMPLATE_PARAM=Code`
-- [x] `AUTH_SESSION_COOKIE`, `AUTH_SESSION_TTL_DAYS`
-- [x] `BOOTSTRAP_MOBILE`, `BOOTSTRAP_OTP`, `ALLOW_BOOTSTRAP_OTP`
-- [x] `LOG_LEVEL=debug`
-
-### ۰.۶ QA فاز ۰
-
-- [x] `npx prisma generate` بدون خطا
-- [x] logger در dev: `[auth] config loaded` (بدون چاپ secret)
+**✅ Definition of Done فاز ۰:** build سبز · `.env.example` کامل · logger آماده
 
 ---
 
-# فاز ۱ — دیتابیس · migration · seed
+# فاز ۱ — Prisma Schema · Migration · Seed
 
-**هدف:** جداول ساخته شوند؛ super admin در DB باشد.
+**هدف:** DB ساخته شود · نقش‌ها + کاربر bootstrap وجود داشته باشد.
 
-**برآورد:** ۰.۵ روز  
-**اتصال:** `DIRECT_URL` (public) برای migrate · `DATABASE_URL` (internal) برای runtime
+### ۱.۱ Schema
 
-### ۱.۱ schema.prisma
+- [ ] `prisma/schema.prisma` — مدل‌های بالا + relations + indexes
+- [ ] `src/lib/db/prisma.ts` — singleton client
 
-- [x] `datasource db`: `url = env("DATABASE_URL")`, `directUrl = env("DIRECT_URL")`
-- [x] enum `UserStatus`: `active` | `inactive`
-- [x] model `SystemRole` (طبق جدول بالا)
-- [x] model `User` با `@@unique` روی `mobile` و `mobileE164`
-- [x] model `OtpChallenge` با index روی `mobileE164`, `expiresAt`
-- [x] model `Session` با `onDelete: Cascade` روی User
+### ۱.۲ Migration
 
-### ۱.۲ migration
+- [ ] `npx prisma migrate dev --name init_auth` لوکال
+- [ ] فایل migration در `prisma/migrations/` commit شود
 
-- [x] `npx prisma migrate dev --name init_auth`
-- [x] commit فایل‌های `prisma/migrations/` (آماده commit)
+### ۱.۳ Seed
 
-### ۱.۳ seed.ts
+- [ ] نقش‌های سیستم: `super_admin`, `admin`, `sales`, `finance_manager`, `production_manager`, `designer`
+- [ ] `permissions` JSON برای هر نقش (حداقل scaffold)
+- [ ] کاربر bootstrap:
+  - username: `artificialxflow`
+  - password: `Ronak#123Ronak` → **bcrypt hash در seed**
+  - displayName: «مدیر کل»
+  - role: `super_admin`
+  - status: `active`
+- [ ] `npx prisma db seed` لوکال — بدون خطا
+- [ ] `npx prisma studio` — User + SystemRole قابل مشاهده
 
-- [x] upsert نقش `super_admin` — «مدیر کل سیستم» — permissions: `["all"]`
-- [x] upsert نقش‌های mock: `sales`, `production_manager`, `designer`, `finance_manager`
-- [x] upsert user bootstrap:
-  - mobile: `9126723365` / e164: `989126723365`
-  - `displayName`: «مدیر کل»
-  - `systemRole`: super_admin
-  - `isBootstrap: true`
-- [x] log: `[db] seed: roles=5 users=1`
-
-### ۱.۴ QA فاز ۱
-
-- [x] `npx prisma db seed` موفق (با `DATABASE_URL` = public در لوکال)
-- [ ] `npx prisma studio` — user bootstrap visible (دستی)
-- [x] اتصال با `DATABASE_URL` internal از محیط deploy (Railway)
+**✅ DoD فاز ۱:** migrate + seed لوکال OK · bootstrap user در DB
 
 ---
 
-# فاز ۲ — سرویس OTP + sms.ir
+# فاز ۲ — Auth Core (کتابخانه داخلی)
 
-**هدف:** send/verify از سرور؛ bootstrap bypass؛ لاگ کافی.
+**هدف:** password، session، rbac، config — بدون UI.
 
-**برآورد:** ۱ روز
+### ۲.۱ Config
 
-### ۲.۱ نرمال‌سازی موبایل
+- [ ] `src/lib/auth/config.ts` — zod parse env (AUTH_SESSION_SECRET الزامی)
 
-- [x] [`src/lib/auth/mobile.ts`](src/lib/auth/mobile.ts)
-- [x] `normalizeMobile(input)` → `{ mobile: '912...', mobileE164: '98912...' }`
-- [x] reject: طول نامعتبر، غیر ایرانی
+### ۲.۲ Password
 
-### ۲.۲ کلاینت sms.ir
+- [ ] `src/lib/auth/password.ts` — `hashPassword`, `verifyPassword` (bcrypt, cost 12)
 
-- [x] [`src/lib/sms/smsIrClient.ts`](src/lib/sms/smsIrClient.ts)
-- [x] `POST https://api.sms.ir/v1/send/verify`
-- [x] headers: `X-API-KEY`, `Accept: application/json`
-- [x] body: `mobile`, `templateId`, `parameters[{ name, value }]`
-- [x] `SMS_IR_SANDBOX=true` → log `[sms] sandbox skip` (بدون HTTP) یا endpoint sandbox طبق doc
-- [x] log: status HTTP، `response.status/message` — **بدون** API key و code
+### ۲.۳ Session
 
-### ۲.۳ سرویس OTP
+- [ ] `src/lib/auth/session.ts`
+  - [ ] generate token تصادفی → hash در DB
+  - [ ] `createSession(userId, req)` → Set-Cookie HttpOnly, SameSite, Path=/
+  - [ ] `getSessionFromRequest` → user + role
+  - [ ] `destroySession`
+  - [ ] `Secure` cookie فقط وقتی HTTPS یا `NODE_ENV=production` + flag مناسب
 
-- [x] [`src/lib/auth/otp.ts`](src/lib/auth/otp.ts)
-- [x] `createChallenge(mobileE164, ip?, ua?)` — کد ۶ رقمی · hash با secret · ذخیره DB
-- [x] `verifyChallenge(mobileE164, code)` — attempts++ · compare hash · mark consumed
-- [x] rate: `resendAfter` از `OTP_RESEND_SECONDS`
-- [x] expire: `OTP_TTL_SECONDS`
-- [x] max: `OTP_MAX_ATTEMPTS`
-- [x] `isBootstrapLogin(mobile, code)` — فقط اگر `ALLOW_BOOTSTRAP_OTP` + match env
-- [x] bootstrap: **بدون** ذخیره OTP در DB · مستقیم verify OK
+### ۲.۴ RBAC
 
-### ۲.۴ QA فاز ۲
+- [ ] `src/lib/auth/rbac.ts`
+  - [ ] `isSuperAdmin`, `hasPermission(permission)`
+  - [ ] `canAssignRole(actorRole, targetRole)` — سطح نقش
+  - [ ] `serializeAuthUser` برای frontend
 
-- [x] unit/manual: hash/verify cycle
-- [x] bootstrap `09126723365` + `000000` → true
-- [x] شماره دیگر + `000000` → false
-- [x] log mask: `0912***3365`
+### ۲.۵ Users helper
 
----
+- [ ] `src/lib/auth/users.ts` — `findUserByUsername`, `requireActiveUser`
 
-# فاز ۳ — API Routes + Session
+### ۲.۶ API helpers
 
-**هدف:** REST auth کامل؛ cookie session.
+- [ ] `src/lib/auth/api.ts` — `jsonOk`, `jsonError`, `handleAuthRouteError`
 
-**برآورد:** ۱ روز
-
-### ۳.۱ Session
-
-- [x] [`src/lib/auth/session.ts`](src/lib/auth/session.ts)
-- [x] `createSession(userId, ip?, ua?)` → token random → hash در DB → Set-Cookie
-- [x] `getSessionFromRequest(req)` → User + Role
-- [x] `destroySession(token)`
-- [x] cookie: `httpOnly`, `sameSite=lax`, `secure` if production, `path=/`
-- [x] TTL: `AUTH_SESSION_TTL_DAYS`
-
-### ۳.۲ API — send
-
-- [x] `POST /api/auth/otp/send` — body: `{ mobile }`
-- [x] کاربر باید در DB باشد (bootstrap mobile همیشه OK)
-- [x] اگر bootstrap-only test: send برای bootstrap بدون SMS واقعی log
-- [x] پاسخ: `{ ok, resendAfterSeconds }` یا خطای فارسی
-
-### ۳.۳ API — verify
-
-- [x] `POST /api/auth/otp/verify` — body: `{ mobile, code }`
-- [x] bootstrap path → user lookup/create از seed
-- [x] normal path → otp verify + user lookup
-- [x] user inactive → 403
-- [x] update `lastLoginAt`
-- [x] Set-Cookie + `{ ok, user: { id, displayName, role } }`
-
-### ۳.۴ API — logout & me
-
-- [x] `POST /api/auth/logout` — clear cookie + delete session
-- [x] `GET /api/auth/me` — user + systemRole + permissions (401 if no session)
-
-### ۳.۵ کدهای خطا (یکدست)
-
-- [x] `AUTH_USER_NOT_FOUND`
-- [x] `OTP_EXPIRED` · `OTP_INVALID` · `OTP_MAX_ATTEMPTS`
-- [x] `OTP_RESEND_TOO_SOON`
-- [x] `AUTH_UNAUTHORIZED`
-
-### ۳.۶ QA فاز ۳
-
-- [x] Postman/curl: send → verify → me → logout
-- [x] cookie بعد logout invalid
-- [x] `[auth]` log در هر endpoint
+**✅ DoD فاز ۲:** unit smoke (node script یا API بعدی) — hash/verify password درست
 
 ---
 
-# فاز ۴ — UI Login + Middleware
+# فاز ۳ — API Routes (Auth)
 
-**هدف:** جریان کاربر در مرورگر؛ محافظت مسیرها.
+**هدف:** login/logout/me با session واقعی.
 
-**برآورد:** ۱ روز
+### ۳.۱ POST `/api/auth/login`
 
-### ۴.۱ صفحه login
+- [ ] body: `{ username, password }` — zod validate
+- [ ] پیدا کردن user · verify password · check status active
+- [ ] update `lastLoginAt`
+- [ ] create session + Set-Cookie
+- [ ] log `[auth] login success/fail` (بدون password)
+- [ ] خطاها: `INVALID_CREDENTIALS`, `USER_DISABLED`
 
-- [x] [`app/login/page.tsx`](app/login/page.tsx) — RTL · فارسی · Vazirmatn
-- [x] مرحله ۱: input موبایل + «ارسال کد»
-- [x] مرحله ۲: input OTP ۶ رقمی + «ورود»
-- [x] countdown resend از `OTP_RESEND_SECONDS`
-- [x] نمایش خطاهای API
-- [x] redirect پس از موفقیت: `searchParams.next` یا `/businesses`
+### ۳.۲ POST `/api/auth/logout`
+
+- [ ] destroy session + clear cookie
+
+### ۳.۳ GET `/api/auth/me`
+
+- [ ] session → user + systemRole + permissions
+- [ ] 401 اگر بدون session
+
+### ۳.۴ تست لوکال API
+
+- [ ] `curl`/fetch: login با `artificialxflow` / `Ronak#123Ronak` → cookie
+- [ ] `/api/auth/me` با cookie → 200 + user
+- [ ] logout → me = 401
+
+**✅ DoD فاز ۳:** login bootstrap لوکال 100% کار کند
+
+---
+
+# فاز ۴ — Frontend Auth · Middleware
+
+**هدف:** UI ورود + محافظت route + context.
+
+### ۴.۱ Login page
+
+- [ ] `app/login/page.tsx` — فرم username + password، خطای فارسی، loading
+- [ ] redirect بعد login: `/businesses` یا `?next=` query
 
 ### ۴.۲ AuthContext
 
-- [x] [`src/context/AuthContext.tsx`](src/context/AuthContext.tsx)
-- [x] `user`, `role`, `loading`, `refresh()`, `logout()`
-- [x] wrap در [`app/providers.tsx`](app/providers.tsx)
+- [ ] `src/context/AuthContext.tsx` — user, loading, refresh(), logout()
+- [ ] wrap در `app/providers.tsx`
 
-### ۴.۳ middleware
+### ۴.۳ Middleware
 
-- [x] [`middleware.ts`](middleware.ts)
-- [x] محافظت: `/dashboard/:path*`, `/businesses/:path*`
-- [x] آزاد: `/`, `/login`, `/shop`, `/blog`, `/mobile`, `/api/auth/:path*`
-- [x] بدون cookie → redirect `/login?next=...`
-- [x] log `[middleware] unauthenticated → login`
+- [ ] `middleware.ts` — protect `/dashboard/:path*`, `/businesses/:path*`
+- [ ] allow: `/`, `/login`, `/invite/:path*`, `/api/auth/login`, static
+- [ ] unauthenticated → redirect `/login?next=...`
+- [ ] log `[middleware]` در debug
 
-### ۴.۴ تغییر مسیر ورود
+### ۴.۴ Landing
 
-- [x] [`LandingPage`](src/views/LandingPage.tsx): «ورود به پنل» → `/login`
-- [x] ترتیب gate: **auth** سپس **BusinessGate** (tenant)
+- [ ] `LandingPage` — «ورود به پنل» → `/login` (نه مستقیم `/businesses`)
 
-### ۴.۵ QA فاز ۴
+### ۴.۵ تست لوکال UI
 
-- [x] `/dashboard` بدون login → `/login`
-- [x] login موفق → `/businesses` → dashboard
-- [x] `next` param کار کند
+- [ ] `/dashboard` بدون login → redirect login
+- [ ] login → دسترسی dashboard
+- [ ] refresh صفحه → session حفظ شود
+- [ ] logout از Sidebar
 
----
-
-# فاز ۵ — نقش‌ها + یکپarچه‌سازی UI
-
-**هدف:** RBAC در Header/Sidebar؛ خروج واقعی؛ نام کاربر از DB.
-
-**برآورد:** ۱ روز
-
-### ۵.۱ Header
-
-- [x] [`Header.tsx`](src/components/Header.tsx): نام + نقش فارسی از `AuthContext`
-- [x] hide/mock user name قدیمی
-
-### ۵.۲ BusinessListPage
-
-- [x] [`BusinessListPage.tsx`](src/views/businesses/BusinessListPage.tsx): «سلام، {displayName}» از session — نه `NEXA_DEMO_USER_NAME`
-
-### ۵.۳ Sidebar logout
-
-- [x] [`Sidebar.tsx`](src/components/Sidebar.tsx): دکمه «خروج» → `logout()` → `/login`
-- [x] onClick فعلی (فعلاً بدون handler)
-
-### ۵.۴ Helpers نقش
-
-- [x] `src/lib/auth/rbac.ts`: `hasPermission(user, 'sales_view')`, `isSuperAdmin(user)`
-- [x] super_admin → همه permissions
-
-### ۵.۵ (اختیاری v7) Settings AccessControl
-
-- [ ] read-only نمایش نقش فعلی در تب دسترسی
-- [ ] CRUD کاربر/نقش از DB → **v8**
-
-### ۵.۶ QA فاز ۵
-
-- [x] super admin: نقش «مدیر کل سیستم» در UI
-- [x] logout + back button → redirect login
+**✅ DoD فاز ۴:** جریان login/logout/middleware لوکال کامل
 
 ---
 
-# فاز ۶ — QA · Deploy · Acceptance
+# فاز ۵ — Admin: مدیریت کاربران
 
-**هدف:** production-ready برای auth لایه اول.
+**هدف:** super_admin/admin بتواند کاربر بسازد، نقش بدهد، پسورد ریست کند.
 
-**برآورد:** ۰.۵ روز
+### ۵.۱ API Admin Users
 
-### ۶.۱ Build & migrate deploy
+- [ ] `GET /api/admin/users` — لیست (فیلتر status) — فقط با permission `users:read`
+- [ ] `POST /api/admin/users` — `{ username, password, displayName, systemRoleId, mustChangePassword? }`
+  - [ ] RBAC: `canAssignRole`
+  - [ ] username unique
+- [ ] `PATCH /api/admin/users/[id]` — displayName, role, status (disable)
+- [ ] `POST /api/admin/users/[id]/reset-password` — `{ newPassword }` — فقط admin مجاز
 
-- [x] `npm run build` سبز (تست شد — dev باید stop شود برای generate همزمان)
-- [ ] Railway/Nixpacks: release command `npx prisma migrate deploy`
-- [x] runtime: `DATABASE_URL` internal (production) · لوکال = public
-- [ ] `NEXT_PUBLIC_APP_URL` = دامنه واقعی production
+### ۵.۲ UI Admin
 
-### ۶.۲ امنیت
+- [ ] بخش «مدیریت کاربران» (Settings یا `/dashboard/settings?tab=users`)
+- [ ] جدول کاربران · دکمه «کاربر جدید» · modal/create form
+- [ ] تغییر نقش · غیرفعال‌سازی · «ریست پسورد»
+- [ ] فقط برای نقش‌های با permission مناسب نمایش داده شود
 
-- [x] `.env` در `.gitignore` (verify)
-- [ ] `ALLOW_BOOTSTRAP_OTP=false` در production (یا حذف bootstrap)
-- [ ] rotate secrets اگر لو رفته
-- [ ] `SMS_IR_SANDBOX=false` وقتی SMS واقعی لازم است
+### ۵.۳ تست لوکال
 
-### ۶.۳ Acceptance tests
+- [ ] login super_admin → ساخت user جدید با نقش `sales`
+- [ ] login user جدید → دسترسی according to role
+- [ ] admin نتواند `super_admin` بسازد (مگر super_admin)
+- [ ] disable user → login fail
 
-- [x] `09126723365` + `000000` → login → `/businesses` → `/dashboard/dashboard`
-- [x] `/dashboard/*` بدون cookie → `/login`
-- [x] logout → session حذف
-- [x] `GET /api/auth/me` → role `super_admin`
-- [x] شماره ناشناس → `AUTH_USER_NOT_FOUND`
-- [ ] OTP اشتباه ۵ بار → `OTP_MAX_ATTEMPTS`
-- [ ] resend زودتر از ۶۰s → `OTP_RESEND_TOO_SOON`
-- [x] logها: prefix درست · بدون leak secret/OTP
-
-### ۶.۴ Regression v6
-
-- [x] میز کار · گفتگو · نامه · درخواست — بدون شکست (mock data)
-- [x] Nextcloud upload/list — بدون تغییر
+**✅ DoD فاز ۵:** CRUD کاربر + reset password لوکال
 
 ---
 
-## استرategی لاگ
+# فاز ۶ — Invite Link (دعوت یک‌بارمصرف)
 
-| Prefix | رویداد |
-|--------|--------|
-| `[auth]` | login/logout/me · session create/destroy |
-| `[otp]` | challenge created/consumed/expired · attempt (no plaintext code) |
-| `[sms]` | HTTP status · sms.ir `status/message` |
-| `[db]` | Prisma errors · seed · migrate |
-| `[middleware]` | redirect unauthenticated |
+**هدف:** لینک share متنی · کاربر username/password خودش را می‌گذارد.
 
-**هرگز log نشود:** OTP plaintext · API key · cookie کامل · DB password
+### ۶.۱ API Invites
 
-**Mask موبایل:** `0912***3365`
+- [ ] `src/lib/auth/invites.ts` — create (random token, store hash), validate, consume
+- [ ] `POST /api/admin/invites` — `{ systemRoleId, expiresInDays?, note? }` → `{ url, expiresAt }`
+- [ ] `GET /api/admin/invites` — لیست (pending/used/expired)
+- [ ] `POST /api/admin/invites/[id]/revoke`
+- [ ] `GET /api/invite/[token]` — public · اعتبار لینک + role preview
+- [ ] `POST /api/invite/[token]` — `{ username, password, displayName }` → create user + invalidate invite
 
----
+### ۶.۲ UI Invite
 
-## بک‌لاگ v8+ (خارج از v7)
+- [ ] Admin: «ساخت لینک دعوت» · copy URL · نمایش expiry
+- [ ] `app/invite/[token]/page.tsx` — فرم ثبت‌نام · خطاهای فارسی (expired/used/invalid)
 
-- [ ] `Business` / `BusinessMember` در DB
-- [ ] CRUD کاربر و نقش از `AccessControlSection`
-- [ ] permission gate روی viewهای داشبورد
-- [ ] sync `MeizitoContext` با `User.id` واقعی
-- [ ] Redis برای OTP (scale)
-- [ ] refresh token / remember device
-- [ ] audit log ورود
+### ۶.۳ تست لوکال
 
----
+- [ ] ساخت invite → URL با `NEXT_PUBLIC_APP_URL`
+- [ ] باز کردن در incognito → ثبت‌نام → login
+- [ ] استفاده مجدد از لینک → خطا
+- [ ] invite منقضی → خطا
 
-## برآورد زمان کل
-
-| فاز | روز |
-|-----|-----|
-| ۰ | ۰.۵ |
-| ۱ | ۰.۵ |
-| ۲ | ۱ |
-| ۳ | ۱ |
-| ۴ | ۱ |
-| ۵ | ۱ |
-| ۶ | ۰.۵ |
-| **جمع** | **~۵.۵ روز** |
+**✅ DoD فاز ۶:** invite end-to-end لوکال
 
 ---
 
-## Definition of Done (v7)
+# فاز ۷ — یکپارچه‌سازی UI
 
-1. PostgreSQL وصل · migration اعمال · seed super admin
-2. login با `09126723365` + `000000` (bootstrap)
-3. login با OTP عادی برای user موجود در DB
-4. session cookie + middleware + logout
-5. نقش سیستم از DB در UI
-6. logger کافی برای debug
-7. `npm run build` + deploy با `prisma migrate deploy`
+**هدف:** جایگزینی mock user · polish.
+
+- [ ] `Header.tsx` — displayName + systemRole.nameFa از AuthContext
+- [ ] `Sidebar.tsx` — خروج → `logout()`
+- [ ] `BusinessListPage.tsx` — سلام با نام واقعی
+- [ ] حذف/جایگزینی `NEXA_DEMO_USER_NAME` hardcode در auth-related views
+- [ ] `BusinessGate` — در صورت نیاز check auth
+
+**✅ DoD فاز ۷:** هیچ نام mock ثابت در header نماند
+
+---
+
+# فاز ۸ — QA لوکال (قبل از push)
+
+**هدف:** هیچ push بدون این چک‌لیست.
+
+### ۸.۱ Build & Lint
+
+- [ ] `npm run build` — سبز
+- [ ] `npm run lint` — بدون error جدید (یا documented)
+
+### ۸.۲ سناریوهای پذیرش
+
+- [ ] login `artificialxflow` / `Ronak#123Ronak` → OK
+- [ ] login اشتباه → پیام خطا · بدون leak
+- [ ] session expire (کوتاه کردن TTL تست) → redirect login
+- [ ] super_admin: create user · reset password · create invite
+- [ ] `/dashboard` protected · `/login` public
+- [ ] regression Meizito/ERP: صفحات اصلی باز می‌شوند بعد login
+
+### ۸.۳ Log review
+
+- [ ] login/logout/admin actions در console/log قابل trace
+- [ ] password/token در log نیست
+
+**✅ DoD فاز ۸:** همه ✅ بالا · آماده commit
+
+---
+
+# فاز ۹ — Deploy · Coolify · Production
+
+**هدف:** push → Coolify → DB sync → login production.
+
+### ۹.۱ Git
+
+- [ ] `git add .`
+- [ ] `git commit -m "feat(auth): username/password, prisma, admin users, invite links"`
+- [ ] `git push -u origin main`
+- [ ] تأیید: `.env.production` commit **نشده**
+
+### ۹.۲ Coolify
+
+- [ ] env vars در Coolify: DATABASE_URL (internal), AUTH_SESSION_SECRET, NEXT_PUBLIC_APP_URL, …
+- [ ] Release/Post-deploy: `npx prisma migrate deploy && npx prisma db seed`
+- [ ] build موفق · container running
+
+### ۹.۳ Production smoke
+
+- [ ] `https?://{domain}/login` باز می‌شود
+- [ ] login bootstrap production
+- [ ] `/api/auth/me` → user
+- [ ] ساخت یک user test از پنل admin
+- [ ] (اختیاری) ALLOW bootstrap password change reminder
+
+### ۹.۴ Rollback plan
+
+- [ ] backup DB قبل migrate اول production
+- [ ] document: اگر seed دوباره زده شد → idempotent upsert در seed
+
+**✅ DoD v7 (کل پروژه):** login production · admin panel · invite · push-to-deploy pipeline
+
+---
+
+## برآورد زمان
+
+| فاز | تخمین |
+|-----|--------|
+| ۰ | 0.5 روز |
+| ۱ | 0.5–1 روز |
+| ۲ | 0.5 روز |
+| ۳ | 0.5 روز |
+| ۴ | 1 روز |
+| ۵ | 1–1.5 روز |
+| ۶ | 1 روز |
+| ۷ | 0.5 روز |
+| ۸ | 0.5 روز |
+| ۹ | 0.5 روز |
+| **جمع** | **~۶–۷ روز** |
+
+---
+
+## بک‌لاگ (بعد از v7)
+
+- [ ] `mustChangePassword` — اجبار تغییر پسورد اولین ورود (UI)
+- [ ] audit log جدول جدا (`AdminAuditLog`)
+- [ ] map `MeizitoContext.mockUsers` → `User.id`
+- [ ] HTTPS + دامنه نهایی · `Secure` cookie
+- [ ] rate limit روی `/api/auth/login`
+- [ ] Sentry برای خطاهای production
+- [ ] حذف کامل vars SMS/OTP از Coolify env
+
+---
+
+## یادداشت Coolify / لاگ
+
+Cursor به‌صورت خودکار log Coolify نمی‌گیرد. بعد deploy:
+1. log runtime Coolify را در صورت خطا paste کنید
+2. یا Sentry MCP برای خطاهای production
+
+---
+
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت کلی v7:** فاز ۰–۸ ✅ · فاز ۹ (push/Coolify) ⬜

@@ -1,99 +1,122 @@
 import { PrismaClient } from '@prisma/client';
-import { createLogger } from '../src/lib/logger';
-
-const logDb = createLogger('[db]');
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
-const ROLES = [
+const BOOTSTRAP_USERNAME = 'artificialxflow';
+const BOOTSTRAP_PASSWORD = 'Ronak#123Ronak';
+const BOOTSTRAP_DISPLAY_NAME = 'مدیر کل';
+
+type RoleSeed = {
+  slug: string;
+  nameFa: string;
+  level: number;
+  permissions: Record<string, boolean>;
+};
+
+const ROLES: RoleSeed[] = [
   {
-    key: 'super_admin',
+    slug: 'super_admin',
     nameFa: 'مدیر کل سیستم',
-    description: 'دسترسی کامل',
-    permissions: ['all'],
-    sortOrder: 0,
+    level: 100,
+    permissions: {
+      'users:read': true,
+      'users:write': true,
+      'invites:read': true,
+      'invites:write': true,
+      'settings:all': true,
+    },
   },
   {
-    key: 'sales',
-    nameFa: 'کارشناس فروش',
-    description: 'فروش و CRM',
-    permissions: ['sales_view', 'sales_edit', 'crm_view'],
-    sortOrder: 1,
+    slug: 'admin',
+    nameFa: 'مدیر',
+    level: 80,
+    permissions: {
+      'users:read': true,
+      'users:write': true,
+      'invites:read': true,
+      'invites:write': true,
+    },
   },
   {
-    key: 'production_manager',
-    nameFa: 'مدیر تولید',
-    description: 'تولید و سفارشات',
-    permissions: ['production_view', 'orders_view'],
-    sortOrder: 2,
-  },
-  {
-    key: 'designer',
-    nameFa: 'طراح داخلی',
-    description: 'طراحی و پروژه',
-    permissions: ['projects_view'],
-    sortOrder: 3,
-  },
-  {
-    key: 'finance_manager',
+    slug: 'finance_manager',
     nameFa: 'مدیر مالی',
-    description: 'مالی و گزارش',
-    permissions: ['finance_all', 'reports_view'],
-    sortOrder: 4,
+    level: 50,
+    permissions: { 'users:read': true },
   },
-] as const;
+  {
+    slug: 'production_manager',
+    nameFa: 'مدیر تولید',
+    level: 50,
+    permissions: { 'users:read': true },
+  },
+  {
+    slug: 'sales',
+    nameFa: 'فروش',
+    level: 30,
+    permissions: {},
+  },
+  {
+    slug: 'designer',
+    nameFa: 'طراح',
+    level: 30,
+    permissions: {},
+  },
+];
 
 async function main() {
+  console.log('[seed] Starting database seed…');
+
   for (const role of ROLES) {
     await prisma.systemRole.upsert({
-      where: { key: role.key },
+      where: { slug: role.slug },
       create: {
-        key: role.key,
+        slug: role.slug,
         nameFa: role.nameFa,
-        description: role.description,
+        level: role.level,
         permissions: role.permissions,
-        sortOrder: role.sortOrder,
         isSystem: true,
       },
       update: {
         nameFa: role.nameFa,
-        description: role.description,
+        level: role.level,
         permissions: role.permissions,
-        sortOrder: role.sortOrder,
       },
     });
+    console.log(`[seed] Role upserted: ${role.slug}`);
   }
 
   const superAdminRole = await prisma.systemRole.findUniqueOrThrow({
-    where: { key: 'super_admin' },
+    where: { slug: 'super_admin' },
   });
+
+  const passwordHash = await bcrypt.hash(BOOTSTRAP_PASSWORD, 12);
 
   await prisma.user.upsert({
-    where: { mobile: '9126723365' },
+    where: { username: BOOTSTRAP_USERNAME },
     create: {
-      mobile: '9126723365',
-      mobileE164: '989126723365',
-      displayName: 'مدیر کل',
-      systemRoleId: superAdminRole.id,
-      isBootstrap: true,
+      username: BOOTSTRAP_USERNAME,
+      passwordHash,
+      displayName: BOOTSTRAP_DISPLAY_NAME,
       status: 'active',
+      systemRoleId: superAdminRole.id,
+      mustChangePassword: false,
     },
     update: {
-      displayName: 'مدیر کل',
-      systemRoleId: superAdminRole.id,
-      isBootstrap: true,
+      passwordHash,
+      displayName: BOOTSTRAP_DISPLAY_NAME,
       status: 'active',
+      systemRoleId: superAdminRole.id,
     },
   });
 
-  const roleCount = await prisma.systemRole.count();
-  const userCount = await prisma.user.count();
-  logDb.info(`seed: roles=${roleCount} users=${userCount}`);
+  console.log(`[seed] Bootstrap user ready: ${BOOTSTRAP_USERNAME}`);
+  console.log('[seed] Done.');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
+  .catch((err) => {
+    console.error('[seed] Failed:', err);
     process.exit(1);
   })
   .finally(async () => {
