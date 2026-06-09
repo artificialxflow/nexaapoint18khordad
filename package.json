@@ -12,7 +12,10 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "test:auth": "tsx scripts/auth-smoke.ts"
+    "test:auth": "tsx scripts/auth-smoke.ts",
+    "logs:coolify": "tsx scripts/coolify-deploy-log.ts",
+    "logs:coolify:watch": "tsx scripts/coolify-deploy-log.ts --watch",
+    "logs:dispatch": "tsx scripts/github-dispatch-coolify-log.ts"
   },
   "dependencies": {
     "@fontsource/vazirmatn": "^5.2.8",

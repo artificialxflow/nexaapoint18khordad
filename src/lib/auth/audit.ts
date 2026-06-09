@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/src/lib/db/prisma';
 import { createLogger } from '@/src/lib/logger';
 
@@ -8,7 +9,7 @@ export async function writeAuditLog(params: {
   action: string;
   targetType: string;
   targetId?: string;
-  meta?: Record<string, unknown>;
+  meta?: Prisma.InputJsonValue;
 }) {
   try {
     await prisma.adminAuditLog.create({
@@ -17,7 +18,7 @@ export async function writeAuditLog(params: {
         action: params.action,
         targetType: params.targetType,
         targetId: params.targetId,
-        meta: params.meta ?? undefined,
+        meta: params.meta,
       },
     });
   } catch (err) {

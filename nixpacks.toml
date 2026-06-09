@@ -1,0 +1,14 @@
+# Coolify/Nixpacks — ensure devDependencies install during build even when
+# NODE_ENV=production is set at build time in Coolify env vars.
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+NPM_CONFIG_PRODUCTION = "false"
+
+[phases.install]
+cmds = ["npm ci --include=dev 2>/dev/null || npm install --include=dev"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npx prisma migrate deploy && npm run start"

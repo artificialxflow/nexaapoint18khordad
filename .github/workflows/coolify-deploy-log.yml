@@ -1,0 +1,53 @@
+name: Coolify deploy log
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [coolify-deploy-failed, coolify-deploy-finished]
+
+jobs:
+  fetch-log:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci --include=dev
+
+      - name: Fetch Coolify deployment log
+        env:
+          COOLIFY_BASE_URL: ${{ secrets.COOLIFY_BASE_URL }}
+          COOLIFY_API_TOKEN: ${{ secrets.COOLIFY_API_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: npm run logs:coolify
+
+      - name: Upload log artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: coolify-deploy-log
+          path: |
+            logs/coolify-latest.log
+            logs/coolify-latest.meta.json
+          if-no-files-found: error
+
+      - name: Create issue on failed deploy
+        if: failure() || contains(github.event.client_payload.status, 'fail')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = 'Coolify deployment log attached as artifact.';
+            try {
+              body = fs.readFileSync('logs/coolify-latest.log', 'utf8').slice(0, 60000);
+            } catch (_) {}
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Coolify deploy failed — ${new Date().toISOString().slice(0, 10)}`,
+              body: body + '\n\n_Artifact: coolify-deploy-log workflow run_',
+              labels: ['deploy', 'coolify'],
+            });

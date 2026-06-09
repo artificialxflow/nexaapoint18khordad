@@ -149,7 +149,7 @@ scripts/auth-smoke.ts               ← گسترش
 | ۸ | زیرتب دسترسی بانک (DB) | ✅ |
 | ۹ | mustChangePassword + audit log | ✅ |
 | ۱۰ | حذف mock از SettingsContext | ✅ |
-| ۱۱ | QA · smoke · build · deploy | ⬜ |
+| ۱۱ | QA · smoke · build · deploy | 🟡 (build+smoke ✅ · Coolify token + redeploy) |
 
 ---
 
@@ -367,9 +367,11 @@ scripts/auth-smoke.ts               ← گسترش
 # فاز ۱۱ — QA · Deploy
 
 ### ۱۱.۱ Automated
-- [ ] گسترش `scripts/auth-smoke.ts`: provision · invite · role read
-- [ ] `npm run test:auth` — 100% pass
-- [ ] `npm run build` — سبز (رفع `/_not-found` prerender اگر blocker)
+- [x] گسترش `scripts/auth-smoke.ts`: provision · invite · role read
+- [x] `npm run test:auth` — 100% pass (9/9 · ۱۴۰۵/۰۳/۱۹)
+- [x] `npm run build` — سبز (layout split + حذف NODE_ENV از .env.local)
+- [x] `nixpacks.toml` — devDeps در build · migrate در start
+- [x] `npm run logs:coolify` / `logs:coolify:watch` — fetch لاگ Coolify
 
 ### ۱۱.۲ Manual acceptance
 - [ ] super_admin: CRUD user · role permissions · invite · restrictions · bank
@@ -378,8 +380,9 @@ scripts/auth-smoke.ts               ← گسترش
 - [ ] همه modalها: mobile · RTL · keyboard
 
 ### ۱۱.۳ Production
-- [ ] push · Coolify · `migrate deploy`
-- [ ] smoke login + یک user test
+- [x] push (دستی توسط شما)
+- [x] `migrate deploy` + `db seed` روی DB (از لوکال · ۱۴۰۵/۰۳/۱۹)
+- [ ] Coolify redeploy + smoke login + یک user test
 
 **✅ DoD v8:** یک منو · DB-only · modal حرفه‌ای · mock access صفر
 
@@ -421,6 +424,6 @@ scripts/auth-smoke.ts               ← گسترش
 - **اول فاز ۰–۳** = بیشترین ارزش UX (ادغام + modal + users)
 - **فاز ۶–۸** = تکمیل «همه زیرتب‌ها» طبق طراحی ماژول ۰۸
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۱۰ ✅ · فاز ۱۱ ⬜ (migrate + smoke + deploy)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۱۰ ✅ · فاز ۱۱ 🟡 (migrate+seed+smoke ✅ · Coolify redeploy دستی)
 
 > **پس از pull:** `npx prisma migrate deploy && npx prisma db seed` سپس `npm run test:auth`

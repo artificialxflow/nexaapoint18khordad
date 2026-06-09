@@ -409,7 +409,16 @@ export default function UsersTab({ innerTab, onInnerTabChange, rolesSlot }: User
       <EditUserModal
         open={Boolean(editUser)}
         onClose={() => setEditUser(null)}
-        user={editUser}
+        user={
+          editUser
+            ? {
+                id: editUser.id,
+                displayName: editUser.displayName,
+                systemRoleId: editUser.systemRole.id,
+                mustChangePassword: editUser.mustChangePassword,
+              }
+            : null
+        }
         roles={assignableRoles.map((r) => ({ id: r.id, nameFa: r.nameFa }))}
         onSubmit={handleEdit}
       />
