@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import { PERMISSION_CATALOG } from '../src/lib/auth/permissions-catalog';
 
 const prisma = new PrismaClient();
 
@@ -111,6 +112,40 @@ async function main() {
   });
 
   console.log(`[seed] Bootstrap user ready: ${BOOTSTRAP_USERNAME}`);
+
+  for (const perm of PERMISSION_CATALOG) {
+    await prisma.permissionCatalog.upsert({
+      where: { key: perm.key },
+      create: {
+        key: perm.key,
+        labelFa: perm.labelFa,
+        module: perm.module,
+        sortOrder: perm.sortOrder,
+        isSystem: true,
+      },
+      update: {
+        labelFa: perm.labelFa,
+        module: perm.module,
+        sortOrder: perm.sortOrder,
+      },
+    });
+  }
+  console.log(`[seed] Permission catalog: ${PERMISSION_CATALOG.length} entries`);
+
+  const banks = [
+    { code: 'melli', nameFa: 'بانک ملی — جاری' },
+    { code: 'sepah', nameFa: 'بانک سپه — پس‌انداز' },
+    { code: 'cash', nameFa: 'صندوق مرکزی' },
+  ];
+  for (const b of banks) {
+    await prisma.bankAccount.upsert({
+      where: { code: b.code },
+      create: b,
+      update: { nameFa: b.nameFa, isActive: true },
+    });
+  }
+  console.log(`[seed] Bank accounts: ${banks.length}`);
+
   console.log('[seed] Done.');
 }
 

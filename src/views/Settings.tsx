@@ -14,7 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import ProjectsSection from '@/src/views/settings/ProjectsSection';
 import BusinessFiscalSection from '@/src/views/settings/BusinessFiscalSection';
 import ExchangeRatesSection from '@/src/views/settings/ExchangeRatesSection';
@@ -22,15 +22,12 @@ import AccessControlSection from '@/src/views/settings/AccessControlSection';
 import FormBuilderSection from '@/src/views/settings/FormBuilderSection';
 import NotificationsSettingsSection from '@/src/views/settings/NotificationsSettingsSection';
 import PicklistsSection from '@/src/views/settings/PicklistsSection';
-import UsersAdminSection from '@/src/views/admin/UsersAdminSection';
-import { useAuth } from '@/src/context/AuthContext';
 
 export type SettingsSectionId =
   | 'projects'
   | 'business'
   | 'exchange'
   | 'access'
-  | 'users'
   | 'form'
   | 'notifications'
   | 'picklists';
@@ -44,7 +41,6 @@ const SECTIONS: {
   { id: 'business', label: 'کسب‌وکار و سال مالی', icon: <Building2 size={14} /> },
   { id: 'exchange', label: 'نرخ ارز', icon: <Coins size={14} /> },
   { id: 'access', label: 'کاربران و دسترسی', icon: <Shield size={14} /> },
-  { id: 'users', label: 'مدیریت کاربران (DB)', icon: <Shield size={14} /> },
   { id: 'form', label: 'فرم‌ساز', icon: <LayoutTemplate size={14} /> },
   { id: 'notifications', label: 'اعلانات', icon: <Bell size={14} /> },
   { id: 'picklists', label: 'فهرست‌های انتخابی', icon: <List size={14} /> },
@@ -53,13 +49,14 @@ const SECTIONS: {
 const VALID_TABS = new Set<string>(SECTIONS.map((s) => s.id));
 
 function parseTab(raw: string | null): SettingsSectionId | null {
+  if (raw === 'users') return 'access';
   if (!raw || !VALID_TABS.has(raw)) return null;
   return raw as SettingsSectionId;
 }
 
 function SettingsInner({ initialSection }: { initialSection?: SettingsSectionId }) {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const router = useRouter();
   const tabFromUrl = useMemo(() => parseTab(searchParams.get('tab')), [searchParams]);
 
   const [section, setSection] = useState<SettingsSectionId>(() => initialSection ?? tabFromUrl ?? 'projects');
@@ -70,6 +67,12 @@ function SettingsInner({ initialSection }: { initialSection?: SettingsSectionId 
     const next = initialSection ?? tabFromUrl;
     if (next) setSection(next);
   }, [initialSection, tabFromUrl]);
+
+  useEffect(() => {
+    if (searchParams.get('tab') === 'users') {
+      router.replace('/dashboard/settings?tab=access');
+    }
+  }, [searchParams, router]);
 
   const handleSave = () => {
     setIsSaving(true);
@@ -90,12 +93,6 @@ function SettingsInner({ initialSection }: { initialSection?: SettingsSectionId 
         return <ExchangeRatesSection />;
       case 'access':
         return <AccessControlSection />;
-      case 'users':
-        return user?.systemRole.permissions['users:read'] || user?.systemRole.slug === 'super_admin' ? (
-          <UsersAdminSection />
-        ) : (
-          <p className="text-sm text-gray-500">دسترسی به مدیریت کاربران ندارید.</p>
-        );
       case 'form':
         return <FormBuilderSection />;
       case 'notifications':

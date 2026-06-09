@@ -5,6 +5,7 @@ import { handleAuthRouteError, jsonError, jsonOk } from '@/src/lib/auth/api';
 import { canAssignRole, canManageUser, hasPermission, serializeAuthUser } from '@/src/lib/auth/rbac';
 import { requireSessionUser } from '@/src/lib/auth/session';
 import { findUserById } from '@/src/lib/auth/users';
+import { writeAuditLog } from '@/src/lib/auth/audit';
 import { createLogger } from '@/src/lib/logger';
 
 const log = createLogger('admin');
@@ -16,6 +17,7 @@ const patchSchema = z.object({
   systemRoleId: z.string().min(1).optional(),
   status: z.enum(['active', 'disabled']).optional(),
   mustChangePassword: z.boolean().optional(),
+  accessLevelPreset: z.enum(['full', 'sales_only', 'finance_only', 'custom']).optional(),
 });
 
 export async function PATCH(req: NextRequest, context: RouteContext) {
@@ -42,6 +44,7 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
       data.status = body.status;
     }
     if (body.mustChangePassword !== undefined) data.mustChangePassword = body.mustChangePassword;
+    if (body.accessLevelPreset !== undefined) data.accessLevelPreset = body.accessLevelPreset;
 
     if (body.systemRoleId !== undefined) {
       const role = await prisma.systemRole.findUnique({ where: { id: body.systemRoleId } });
@@ -62,6 +65,12 @@ export async function PATCH(req: NextRequest, context: RouteContext) {
     });
 
     log.info('user updated', { actorId: actor.id, targetId: id });
+    await writeAuditLog({
+      actorId: actor.id,
+      action: 'user.update',
+      targetType: 'User',
+      targetId: id,
+    });
     return jsonOk({ user: serializeAuthUser(updated) });
   } catch (err) {
     if (err instanceof z.ZodError) {

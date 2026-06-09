@@ -183,7 +183,12 @@ async function main() {
       else fail('accept invite auto', `status=${acceptAuto.res.status}`);
     }
 
-    // 7. Logout
+    // 7. Roles list
+    const adminRolesRes = await fetchJson('/api/admin/roles', { cookie });
+    if (adminRolesRes.res.ok) pass('GET /api/admin/roles');
+    else fail('GET /api/admin/roles', `status=${adminRolesRes.res.status}`);
+
+    // 8. Logout
     const logout = await fetchJson('/api/auth/logout', { method: 'POST', cookie });
     if (logout.res.ok) pass('logout');
     else fail('logout', `status=${logout.res.status}`);

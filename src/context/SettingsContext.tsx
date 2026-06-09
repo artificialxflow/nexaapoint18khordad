@@ -9,8 +9,6 @@ import React, {
   useState,
 } from 'react';
 import type {
-  AccessLevelPreset,
-  BankAccessExample,
   BusinessProfile,
   ExchangeRateRow,
   FiscalYearSettings,
@@ -40,8 +38,6 @@ type StoredSettings = Partial<{
   exchangeRates: ExchangeRateRow[];
   formTemplates: FormTemplate[];
   notificationRules: NotificationRule[];
-  accessLevelPreset: AccessLevelPreset;
-  bankAccessExamples: BankAccessExample[];
   picklists: SettingsPicklist[];
   draftFormKind: FormBuilderKind;
   draftFormName: string;
@@ -119,11 +115,6 @@ const seedNotifications: NotificationRule[] = [
     enabled: true,
     channel: 'in-app',
   },
-];
-
-const seedBankAccess: BankAccessExample[] = [
-  { bankId: 'b1', bankName: 'بانک ملی — جاری ۱', allowed: true },
-  { bankId: 'b2', bankName: 'بانک ملت — سپرده', allowed: false },
 ];
 
 function itemsFromPairs(pairs: [string, string][]): SettingsPicklistItem[] {
@@ -252,11 +243,6 @@ export interface SettingsContextValue {
   notificationRules: NotificationRule[];
   setNotificationRule: (id: string, patch: Partial<NotificationRule>) => void;
 
-  accessLevelPreset: AccessLevelPreset;
-  setAccessLevelPreset: (p: AccessLevelPreset) => void;
-  bankAccessExamples: BankAccessExample[];
-  setBankAccessAllowed: (bankId: string, allowed: boolean) => void;
-
   picklists: SettingsPicklist[];
   getPicklist: (kind: SettingsPicklistKind, businessId?: string | null) => SettingsPicklistItem[];
   upsertPicklistItem: (
@@ -297,12 +283,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [notificationRules, setNotificationRules] = useState<NotificationRule[]>(
     () => stored.notificationRules ?? seedNotifications
   );
-  const [accessLevelPreset, setAccessLevelPresetState] = useState<AccessLevelPreset>(
-    () => stored.accessLevelPreset ?? 'custom'
-  );
-  const [bankAccessExamples, setBankAccessExamples] = useState<BankAccessExample[]>(
-    () => stored.bankAccessExamples ?? seedBankAccess
-  );
   const [picklists, setPicklists] = useState<SettingsPicklist[]>(() =>
     normalizePicklists(stored.picklists)
   );
@@ -316,8 +296,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       exchangeRates,
       formTemplates,
       notificationRules,
-      accessLevelPreset,
-      bankAccessExamples,
       picklists,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -328,8 +306,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     exchangeRates,
     formTemplates,
     notificationRules,
-    accessLevelPreset,
-    bankAccessExamples,
     picklists,
   ]);
 
@@ -416,16 +392,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
 
   const setNotificationRule = useCallback((id: string, patch: Partial<NotificationRule>) => {
     setNotificationRules((prev) => prev.map((x) => (x.id === id ? { ...x, ...patch } : x)));
-  }, []);
-
-  const setAccessLevelPreset = useCallback((p: AccessLevelPreset) => {
-    setAccessLevelPresetState(p);
-  }, []);
-
-  const setBankAccessAllowed = useCallback((bankId: string, allowed: boolean) => {
-    setBankAccessExamples((prev) =>
-      prev.map((x) => (x.bankId === bankId ? { ...x, allowed } : x))
-    );
   }, []);
 
   const getPicklist = useCallback(
@@ -547,10 +513,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       removeFormTemplate,
       notificationRules,
       setNotificationRule,
-      accessLevelPreset,
-      setAccessLevelPreset,
-      bankAccessExamples,
-      setBankAccessAllowed,
       picklists,
       getPicklist,
       upsertPicklistItem,
@@ -583,10 +545,6 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       removeFormTemplate,
       notificationRules,
       setNotificationRule,
-      accessLevelPreset,
-      setAccessLevelPreset,
-      bankAccessExamples,
-      setBankAccessAllowed,
       picklists,
       getPicklist,
       upsertPicklistItem,

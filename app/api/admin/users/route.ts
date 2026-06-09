@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
     return jsonOk({
       users: visible.map((u) => ({
         ...serializeAuthUser(u),
+        accessLevelPreset: u.accessLevelPreset,
         lastLoginAt: u.lastLoginAt,
         createdAt: u.createdAt,
       })),
