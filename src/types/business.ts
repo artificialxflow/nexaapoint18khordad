@@ -26,6 +26,3 @@ export type NexaBusiness = {
 
 export const NEXA_ACTIVE_BUSINESS_ID_KEY = 'nexa-active-business-id';
 export const NEXA_BUSINESSES_STORAGE_KEY = 'nexa-businesses-v1';
-
-/** نام کاربر mock برای صفحه لیست */
-export const NEXA_DEMO_USER_NAME = 'کاربر دمو';

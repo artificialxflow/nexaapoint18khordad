@@ -26,6 +26,22 @@ enum AccessLevelPreset {
   custom
 }
 
+enum BusinessPlan {
+  trial
+  active
+}
+
+enum BusinessMemberRole {
+  owner
+  admin
+  member
+}
+
+enum BusinessStatus {
+  active
+  archived
+}
+
 model SystemRole {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -64,6 +80,8 @@ model User {
   restriction     UserRestriction?
   bankAccess      UserBankAccess[]
   auditLogs       AdminAuditLog[]
+  businessesCreated Business[]       @relation("BusinessCreatedBy")
+  businessMembers   BusinessMember[]
 }
 
 model Session {
@@ -163,4 +181,88 @@ model AdminAuditLog {
 
   @@index([actorId])
   @@index([createdAt])
+}
+
+model Business {
+  id            String         @id @default(cuid())
+  name          String
+  plan          BusinessPlan   @default(trial)
+  expiresAt     DateTime?
+  creditLabel   String         @default("نامحدود")
+  defaultLocale String         @default("fa")
+  status        BusinessStatus @default(active)
+  createdById   String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  createdBy   User                @relation("BusinessCreatedBy", fields: [createdById], references: [id])
+  members     BusinessMember[]
+  profile     BusinessProfile?
+  fiscalYears FiscalYear[]
+  projects    AccountingProject[]
+
+  @@index([status])
+  @@index([createdById])
+}
+
+model BusinessMember {
+  id         String             @id @default(cuid())
+  businessId String
+  userId     String
+  role       BusinessMemberRole @default(member)
+  createdAt  DateTime           @default(now())
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, userId])
+  @@index([userId])
+}
+
+model BusinessProfile {
+  businessId   String   @id
+  legalName    String   @default("")
+  tradeName    String   @default("")
+  nationalId   String   @default("")
+  economicCode String   @default("")
+  regNo        String   @default("")
+  phone        String   @default("")
+  fax          String   @default("")
+  address      String   @default("")
+  postalCode   String   @default("")
+  city         String   @default("")
+  website      String   @default("")
+  email        String   @default("")
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+}
+
+model FiscalYear {
+  id         String   @id @default(cuid())
+  businessId String
+  label      String
+  startDate  String
+  endDate    String
+  isActive   Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model AccountingProject {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  isDefault  Boolean  @default(false)
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
 }

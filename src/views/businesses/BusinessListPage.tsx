@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Building2,
@@ -11,10 +11,12 @@ import {
   Clock,
   Database,
   Info,
+  Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/src/context/AuthContext';
 import Logo from '@/src/components/Logo';
 import { useBusiness } from '@/src/context/BusinessContext';
+import ConfirmDialog from '@/src/components/admin/ConfirmDialog';
 import {
   NEXA_BUSINESS_PLAN_LABELS,
   NEXA_BUSINESS_ROLE_LABELS,
@@ -37,19 +39,29 @@ function formatExpiry(iso?: string) {
 export default function BusinessListPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const { businesses, setActiveBusinessId, removeBusiness } = useBusiness();
+  const { businesses, loading, error, setActiveBusinessId, removeBusiness, refreshBusinesses } =
+    useBusiness();
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const enter = (id: string) => {
     setActiveBusinessId(id);
     router.push('/dashboard/dashboard');
   };
 
-  const handleDelete = (id: string, name: string) => {
-    if (id === 'biz-demo') {
-      alert('کسب‌وکار دمو قابل حذف نیست.');
-      return;
+  const handleDelete = async () => {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await removeBusiness(confirmDelete.id);
+      setConfirmDelete(null);
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : 'حذف ناموفق بود.');
+    } finally {
+      setDeleting(false);
     }
-    if (window.confirm(`حذف «${name}»؟`)) removeBusiness(id);
   };
 
   return (
@@ -76,7 +88,23 @@ export default function BusinessListPage() {
           </h1>
         </div>
 
-        {businesses.length === 0 ? (
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 text-gray-500 py-16">
+            <Loader2 size={20} className="animate-spin" />
+            در حال بارگذاری…
+          </div>
+        ) : error ? (
+          <div className="nexa-card p-8 text-center space-y-4">
+            <p className="text-rose-600 text-sm">{error}</p>
+            <button
+              type="button"
+              onClick={() => void refreshBusinesses()}
+              className="nexa-btn-primary px-4 py-2 text-sm"
+            >
+              تلاش مجدد
+            </button>
+          </div>
+        ) : businesses.length === 0 ? (
           <div className="nexa-card p-12 text-center space-y-4">
             <Building2 size={48} className="mx-auto text-gray-300" />
             <p className="text-gray-500">هنوز کسب‌وکاری ثبت نکرده‌اید.</p>
@@ -103,8 +131,14 @@ export default function BusinessListPage() {
                   <div className="min-w-0">
                     <p className="text-lg font-black text-gray-900 truncate">{b.name}</p>
                     <div className="flex flex-wrap gap-2 mt-2">
-                      <Chip icon={<Shield size={12} />} label={`سطح دسترسی: ${NEXA_BUSINESS_ROLE_LABELS[b.role]}`} />
-                      <Chip icon={<Info size={12} />} label={`اشتراک: ${NEXA_BUSINESS_PLAN_LABELS[b.plan]}`} />
+                      <Chip
+                        icon={<Shield size={12} />}
+                        label={`سطح دسترسی: ${NEXA_BUSINESS_ROLE_LABELS[b.role]}`}
+                      />
+                      <Chip
+                        icon={<Info size={12} />}
+                        label={`اشتراک: ${NEXA_BUSINESS_PLAN_LABELS[b.plan]}`}
+                      />
                       <Chip icon={<Clock size={12} />} label={`انقضا: ${formatExpiry(b.expiresAt)}`} />
                       <Chip icon={<Database size={12} />} label={`اعتبار: ${b.creditLabel ?? '—'}`} />
                     </div>
@@ -112,14 +146,16 @@ export default function BusinessListPage() {
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0 md:mr-auto">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(b.id, b.name)}
-                    className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50"
-                    aria-label="حذف"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  {b.role === 'owner' && (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmDelete({ id: b.id, name: b.name })}
+                      className="p-2.5 rounded-xl border border-rose-200 text-rose-600 hover:bg-rose-50"
+                      aria-label="حذف"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => enter(b.id)}
@@ -134,6 +170,23 @@ export default function BusinessListPage() {
           </div>
         )}
       </main>
+
+      {deleteError ? (
+        <p className="fixed bottom-6 right-6 max-w-sm text-sm text-rose-600 bg-white border border-rose-200 rounded-xl px-4 py-3 shadow-lg">
+          {deleteError}
+        </p>
+      ) : null}
+
+      <ConfirmDialog
+        open={Boolean(confirmDelete)}
+        onClose={() => !deleting && setConfirmDelete(null)}
+        onConfirm={() => void handleDelete()}
+        title="حذف کسب‌وکار"
+        message={`کسب‌وکار «${confirmDelete?.name ?? ''}» بایگانی شود؟`}
+        confirmLabel={deleting ? 'در حال حذف…' : 'حذف'}
+        variant="danger"
+        loading={deleting}
+      />
     </div>
   );
 }

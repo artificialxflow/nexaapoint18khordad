@@ -76,11 +76,6 @@ function readStored(): StoredSettings {
   }
 }
 
-const seedProjects: SettingsProject[] = [
-  { id: 'p1', name: 'پروژه A', isDefault: true, active: true, businessId: 'biz-demo' },
-  { id: 'p2', name: 'پروژه B', isDefault: false, active: true, businessId: 'biz-demo' },
-];
-
 const seedRates: ExchangeRateRow[] = [
   { id: 'rate-seed-usd', fromCurrency: 'USD', toCurrency: 'IRR', rate: 42000, effectiveDate: '1404/08/01' },
   { id: 'rate-seed-eur', fromCurrency: 'EUR', toCurrency: 'IRR', rate: 45500, effectiveDate: '1404/08/01' },
@@ -267,7 +262,7 @@ const SettingsContext = createContext<SettingsContextValue | null>(null);
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const stored = useMemo(() => readStored(), []);
 
-  const [projects, setProjects] = useState<SettingsProject[]>(() => stored.projects ?? seedProjects);
+  const [projects, setProjects] = useState<SettingsProject[]>(() => stored.projects ?? []);
   const [business, setBusinessState] = useState<BusinessProfile>(() => ({
     ...defaultBusiness(),
     ...stored.business,

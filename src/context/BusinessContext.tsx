@@ -9,36 +9,8 @@ import React, {
   useState,
 } from 'react';
 import type { NexaBusiness } from '@/src/types/business';
-import {
-  NEXA_ACTIVE_BUSINESS_ID_KEY,
-  NEXA_BUSINESSES_STORAGE_KEY,
-} from '@/src/types/business';
-
-function newId() {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
-  return String(Date.now());
-}
-
-function defaultExpiryIso(): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() + 3);
-  return d.toISOString();
-}
-
-function seedBusinesses(): NexaBusiness[] {
-  const now = new Date().toISOString();
-  return [
-    {
-      id: 'biz-demo',
-      name: 'شرکت دمو',
-      role: 'owner',
-      plan: 'trial',
-      expiresAt: defaultExpiryIso(),
-      creditLabel: 'نامحدود',
-      createdAt: now,
-    },
-  ];
-}
+import { NEXA_ACTIVE_BUSINESS_ID_KEY, NEXA_BUSINESSES_STORAGE_KEY } from '@/src/types/business';
+import { useAuthOptional } from '@/src/context/AuthContext';
 
 function readActiveId(): string | null {
   if (typeof window === 'undefined') return null;
@@ -49,10 +21,13 @@ export type BusinessContextValue = {
   businesses: NexaBusiness[];
   activeBusinessId: string | null;
   activeBusiness: NexaBusiness | null;
+  loading: boolean;
+  error: string | null;
+  refreshBusinesses: () => Promise<void>;
   setActiveBusinessId: (id: string) => void;
-  addBusiness: (input: Omit<NexaBusiness, 'id' | 'createdAt'>) => string;
-  updateBusiness: (id: string, patch: Partial<Omit<NexaBusiness, 'id' | 'createdAt'>>) => void;
-  removeBusiness: (id: string) => void;
+  addBusiness: (input: { name: string }) => Promise<string>;
+  updateBusiness: (id: string, patch: Partial<Omit<NexaBusiness, 'id' | 'createdAt'>>) => Promise<void>;
+  removeBusiness: (id: string) => Promise<void>;
   getDefaultBusiness: () => NexaBusiness | undefined;
   hasActiveBusiness: boolean;
 };
@@ -60,26 +35,16 @@ export type BusinessContextValue = {
 const BusinessContext = createContext<BusinessContextValue | null>(null);
 
 export function BusinessProvider({ children }: { children: React.ReactNode }) {
-  const [businesses, setBusinesses] = useState<NexaBusiness[]>(() => {
-    if (typeof window === 'undefined') return seedBusinesses();
-    try {
-      const raw = window.localStorage.getItem(NEXA_BUSINESSES_STORAGE_KEY);
-      if (!raw) return seedBusinesses();
-      const parsed = JSON.parse(raw) as NexaBusiness[];
-      return parsed.length ? parsed : seedBusinesses();
-    } catch {
-      return seedBusinesses();
-    }
-  });
-
-  const [activeBusinessId, setActiveBusinessIdState] = useState<string | null>(() =>
-    readActiveId()
-  );
+  const auth = useAuthOptional();
+  const [businesses, setBusinesses] = useState<NexaBusiness[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [activeBusinessId, setActiveBusinessIdState] = useState<string | null>(() => readActiveId());
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    window.localStorage.setItem(NEXA_BUSINESSES_STORAGE_KEY, JSON.stringify(businesses));
-  }, [businesses]);
+    window.localStorage.removeItem(NEXA_BUSINESSES_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -90,6 +55,40 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeBusinessId]);
 
+  const refreshBusinesses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/businesses', { credentials: 'include' });
+      const json = await res.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? 'بارگذاری کسب‌وکارها ناموفق بود.');
+      }
+      const list = (json.data?.businesses ?? []) as NexaBusiness[];
+      setBusinesses(list);
+      setActiveBusinessIdState((current) => {
+        if (current && list.some((b) => b.id === current)) return current;
+        return list[0]?.id ?? null;
+      });
+    } catch (e) {
+      setBusinesses([]);
+      setError(e instanceof Error ? e.message : 'خطای نامشخص');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!auth || auth.loading) return;
+    if (!auth.user) {
+      setBusinesses([]);
+      setActiveBusinessIdState(null);
+      setLoading(false);
+      return;
+    }
+    void refreshBusinesses();
+  }, [auth?.user, auth?.loading, refreshBusinesses]);
+
   const activeBusiness = useMemo(
     () => businesses.find((b) => b.id === activeBusinessId) ?? null,
     [businesses, activeBusinessId]
@@ -99,32 +98,54 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
     setActiveBusinessIdState(id);
   }, []);
 
-  const addBusiness = useCallback((input: Omit<NexaBusiness, 'id' | 'createdAt'>) => {
-    const id = newId();
-    const business: NexaBusiness = {
-      ...input,
-      id,
-      createdAt: new Date().toISOString(),
-      creditLabel: input.creditLabel ?? 'نامحدود',
-      plan: input.plan ?? 'trial',
-      role: input.role ?? 'owner',
-      expiresAt: input.expiresAt ?? defaultExpiryIso(),
-    };
-    setBusinesses((prev) => [...prev, business]);
-    return id;
-  }, []);
+  const addBusiness = useCallback(async (input: { name: string }) => {
+    const res = await fetch('/api/businesses', {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: input.name }),
+    });
+    const json = await res.json();
+    if (!json.ok) {
+      throw new Error(json.error?.message ?? 'ایجاد کسب‌وکار ناموفق بود.');
+    }
+    const business = json.data.business as NexaBusiness;
+    await refreshBusinesses();
+    return business.id;
+  }, [refreshBusinesses]);
 
   const updateBusiness = useCallback(
-    (id: string, patch: Partial<Omit<NexaBusiness, 'id' | 'createdAt'>>) => {
-      setBusinesses((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    async (id: string, patch: Partial<Omit<NexaBusiness, 'id' | 'createdAt'>>) => {
+      const res = await fetch(`/api/businesses/${id}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(patch),
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? 'به‌روزرسانی ناموفق بود.');
+      }
+      await refreshBusinesses();
     },
-    []
+    [refreshBusinesses]
   );
 
-  const removeBusiness = useCallback((id: string) => {
-    setBusinesses((prev) => prev.filter((b) => b.id !== id));
-    setActiveBusinessIdState((current) => (current === id ? null : current));
-  }, []);
+  const removeBusiness = useCallback(
+    async (id: string) => {
+      const res = await fetch(`/api/businesses/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      const json = await res.json();
+      if (!json.ok) {
+        throw new Error(json.error?.message ?? 'حذف ناموفق بود.');
+      }
+      setActiveBusinessIdState((current) => (current === id ? null : current));
+      await refreshBusinesses();
+    },
+    [refreshBusinesses]
+  );
 
   const getDefaultBusiness = useCallback(
     () => businesses.find((b) => !b.isArchived) ?? businesses[0],
@@ -136,6 +157,9 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       businesses: businesses.filter((b) => !b.isArchived),
       activeBusinessId,
       activeBusiness,
+      loading,
+      error,
+      refreshBusinesses,
       setActiveBusinessId,
       addBusiness,
       updateBusiness,
@@ -147,6 +171,9 @@ export function BusinessProvider({ children }: { children: React.ReactNode }) {
       businesses,
       activeBusinessId,
       activeBusiness,
+      loading,
+      error,
+      refreshBusinesses,
       setActiveBusinessId,
       addBusiness,
       updateBusiness,
