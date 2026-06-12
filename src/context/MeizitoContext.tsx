@@ -85,6 +85,14 @@ import {
   fetchWorkspaceSnapshot,
 } from '@/src/lib/meizito/workspace/client';
 import type { WorkspaceSnapshot } from '@/src/lib/meizito/workspace/serialize';
+import {
+  apiCreateInternalRequest,
+  apiInternalRequestApproval,
+  apiSubmitInternalRequest,
+  apiUpdateInternalRequestStatus,
+  fetchRequestsSnapshot,
+} from '@/src/lib/meizito/requests/client';
+import type { RequestsSnapshot } from '@/src/lib/meizito/requests/serialize';
 
 export { MEIZITO_CURRENT_USER_NAME };
 
@@ -727,49 +735,54 @@ function seedData() {
       },
     ],
     activeCalendarId: 'cal-customer',
-    internalRequests: [
-      {
-        id: 'req-1',
-        subject: 'هماهنگی پرینتر',
-        body: 'لطفاً پرینتر طبقه فروش را بررسی و کارتریج تهیه کنید.',
-        status: 'open' as const,
-        referredToUserIds: ['user-maryam'],
-        referredTo: ['مریم'],
-        ccUserIds: [],
-        authorId: 'user-sara',
-        authorName: 'سارا',
-        createdAt: new Date().toISOString(),
-        approvalState: 'approved' as const,
-        approvalSteps: [],
-      },
-      {
-        id: 'req-2',
-        subject: 'درخواست کامپیوتر',
-        body: 'لطفاً برای ایستگاه کاری جدید یک سیستم تاییدشده تهیه شود.',
-        status: 'open' as const,
-        authorId: 'user-reza',
-        authorName: 'رضا',
-        createdAt: new Date().toISOString(),
-        priority: 'high' as const,
-        category: 'administrative' as const,
-        attachments: [],
-        approvalState: 'pending' as const,
-        currentAssigneeId: 'user-manager',
-        submittedAt: new Date().toISOString(),
-        approvalSteps: [
-          {
-            id: 'ap-seed-1',
-            actorId: 'user-reza',
-            actorName: 'رضا',
-            action: 'submit' as const,
-            comment: 'ارسال برای تایید',
-            at: new Date().toISOString(),
-          },
-        ],
-      },
-    ],
     activeThreadId: thDirect,
   };
+}
+
+function seedRequestsMock(): MeizitoInternalRequest[] {
+  const todayKey = dateKeyOffset(0);
+  const now = new Date().toISOString();
+  return [
+    {
+      id: 'req-1',
+      subject: 'هماهنگی پرینتر',
+      body: 'لطفاً پرینتر طبقه فروش را بررسی و کارتریج تهیه کنید.',
+      status: 'open' as const,
+      referredToUserIds: ['user-maryam'],
+      referredTo: ['مریم'],
+      ccUserIds: [],
+      authorId: 'user-sara',
+      authorName: 'سارا',
+      createdAt: now,
+      approvalState: 'approved' as const,
+      approvalSteps: [],
+    },
+    {
+      id: 'req-2',
+      subject: 'درخواست کامپیوتر',
+      body: 'لطفاً برای ایستگاه کاری جدید یک سیستم تاییدشده تهیه شود.',
+      status: 'open' as const,
+      authorId: 'user-reza',
+      authorName: 'رضا',
+      createdAt: now,
+      priority: 'high' as const,
+      category: 'administrative' as const,
+      attachments: [],
+      approvalState: 'pending' as const,
+      currentAssigneeId: 'user-manager',
+      submittedAt: now,
+      approvalSteps: [
+        {
+          id: 'ap-seed-1',
+          actorId: 'user-reza',
+          actorName: 'رضا',
+          action: 'submit' as const,
+          comment: 'ارسال برای تایید',
+          at: now,
+        },
+      ],
+    },
+  ];
 }
 
 export interface MeizitoContextValue {
@@ -912,7 +925,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
   const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
+  const requestsSeed = useMemo(() => seedRequestsMock(), []);
   const workspaceFromApi = dataSources.workspace === 'api';
+  const requestsFromApi = dataSources.requests === 'api';
   const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
     workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
   );
@@ -941,7 +956,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       : (stored.fieldVisits ?? workspaceSeed.fieldVisits ?? []).map(normalizeFieldVisit)
   );
   const [internalRequests, setInternalRequests] = useState<MeizitoInternalRequest[]>(() =>
-    (stored.internalRequests ?? seed.internalRequests ?? []).map(normalizeInternalRequest)
+    requestsFromApi
+      ? []
+      : (stored.internalRequests ?? requestsSeed).map(normalizeInternalRequest)
   );
   const [currentUserId, setCurrentUserIdState] = useState(
     () => stored.currentUserId ?? seed.currentUserId ?? DEFAULT_USER_ID
@@ -1046,6 +1063,25 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   }, [refreshWorkspace]);
 
   const useWorkspaceApi = dataSources.workspace === 'api' && !!activeBusinessId;
+  const useRequestsApi = dataSources.requests === 'api' && !!activeBusinessId;
+
+  const applyRequestsSnapshot = useCallback((snapshot: RequestsSnapshot) => {
+    setInternalRequests(snapshot.requests.map(normalizeInternalRequest));
+  }, []);
+
+  const refreshRequests = useCallback(async () => {
+    if (dataSources.requests !== 'api' || !activeBusinessId) return;
+    try {
+      const snapshot = await fetchRequestsSnapshot(activeBusinessId);
+      applyRequestsSnapshot(snapshot);
+    } catch {
+      applyRequestsSnapshot({ requests: [] });
+    }
+  }, [activeBusinessId, applyRequestsSnapshot, dataSources.requests]);
+
+  useEffect(() => {
+    void refreshRequests();
+  }, [refreshRequests]);
 
   useEffect(() => {
     if (dataSources.teamDirectory !== 'api' || !sessionUserId) return;
@@ -1054,12 +1090,13 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const persistRequests = !requestsFromApi;
     if (dataSources.workspace === 'api') {
       const payload: Stored = {
         threads,
         messages,
         letters,
-        internalRequests,
+        ...(persistRequests ? { internalRequests } : {}),
         currentUserId,
         calendars,
         calendarEvents,
@@ -1081,7 +1118,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       letters,
       dailyReports,
       fieldVisits,
-      internalRequests,
+      ...(persistRequests ? { internalRequests } : {}),
       currentUserId,
       notes,
       noteBoards,
@@ -1113,6 +1150,8 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     activeCalendarId,
     activeBoardId,
     activeThreadId,
+    dataSources.workspace,
+    requestsFromApi,
   ]);
 
   const setActiveBoardId = useCallback((id: string) => setActiveBoardIdState(id), []);
@@ -1695,6 +1734,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       },
       options?: { submitForApproval?: boolean }
     ) => {
+      if (useRequestsApi && activeBusinessId) {
+        void apiCreateInternalRequest(activeBusinessId, req, options).then(() => refreshRequests());
+        return '';
+      }
       const now = new Date().toISOString();
       const id = newId();
       const authorName =
@@ -1717,24 +1760,42 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setInternalRequests((prev) => [...prev, item]);
       return id;
     },
-    [directoryUsers]
+    [useRequestsApi, activeBusinessId, refreshRequests, directoryUsers]
   );
 
-  const closeInternalRequest = useCallback((id: string) => {
-    const now = new Date().toISOString();
-    setInternalRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'closed', closedAt: now } : r))
-    );
-  }, []);
+  const closeInternalRequest = useCallback(
+    (id: string) => {
+      if (useRequestsApi && activeBusinessId) {
+        void apiUpdateInternalRequestStatus(activeBusinessId, id, 'closed').then(() => refreshRequests());
+        return;
+      }
+      const now = new Date().toISOString();
+      setInternalRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'closed', closedAt: now } : r))
+      );
+    },
+    [useRequestsApi, activeBusinessId, refreshRequests]
+  );
 
-  const reopenInternalRequest = useCallback((id: string) => {
-    setInternalRequests((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: 'open', closedAt: undefined } : r))
-    );
-  }, []);
+  const reopenInternalRequest = useCallback(
+    (id: string) => {
+      if (useRequestsApi && activeBusinessId) {
+        void apiUpdateInternalRequestStatus(activeBusinessId, id, 'open').then(() => refreshRequests());
+        return;
+      }
+      setInternalRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: 'open', closedAt: undefined } : r))
+      );
+    },
+    [useRequestsApi, activeBusinessId, refreshRequests]
+  );
 
   const submitForApproval = useCallback(
     (entityType: MeizitoApprovableEntityType, id: string) => {
+      if (useRequestsApi && activeBusinessId && entityType === 'request') {
+        void apiSubmitInternalRequest(activeBusinessId, id).then(() => refreshRequests());
+        return;
+      }
       const actor = directoryUsers.find((u) => u.id === currentUserId);
       const actorName = actor?.name ?? MEIZITO_CURRENT_USER_NAME;
       if (entityType === 'letter') {
@@ -1761,7 +1822,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       }
     },
-    [currentUserId, directoryUsers]
+    [useRequestsApi, activeBusinessId, refreshRequests, currentUserId, directoryUsers]
   );
 
   const recordApprovalAction = useCallback(
@@ -1770,6 +1831,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       id: string,
       payload: Omit<RecordApprovalPayload, 'actorId' | 'actorName'>
     ) => {
+      if (useRequestsApi && activeBusinessId && entityType === 'request') {
+        void apiInternalRequestApproval(activeBusinessId, id, payload).then(() => refreshRequests());
+        return;
+      }
       const actor = directoryUsers.find((u) => u.id === currentUserId);
       const forward = resolveForwardTargets({
         ...payload,
@@ -1814,7 +1879,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       }
     },
-    [currentUserId, directoryUsers]
+    [useRequestsApi, activeBusinessId, refreshRequests, currentUserId, directoryUsers]
   );
 
   const getPendingApprovalCounts = useCallback(

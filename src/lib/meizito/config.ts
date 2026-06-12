@@ -14,7 +14,7 @@ export type MeizitoDataSources = {
 export const MEIZITO_DATA_SOURCES: MeizitoDataSources = {
   teamDirectory: 'api',
   workspace: 'api',
-  requests: 'mock',
+  requests: 'api',
   letters: 'mock',
   calendar: 'mock',
   chat: 'mock',

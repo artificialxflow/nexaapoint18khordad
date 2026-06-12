@@ -15,10 +15,10 @@
 
 | منو (دسترسی سریع) | Route | Panel / View | Backend |
 |-------------------|-------|--------------|---------|
-| **میز کار** | `/dashboard/tasks` | `MeizitoWorkspace` (چند tab) | mock + `localStorage` |
+| **میز کار** | `/dashboard/tasks` | `MeizitoWorkspace` (چند tab) | **DB ✅ فاز ۲** |
 | **تقویم** | `/dashboard/tasks?tab=calendar` | `CalendarPanel` | mock |
 | **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | mock |
-| **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | mock |
+| **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | **DB ✅ فاز ۳** |
 | **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | mock |
 | **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
 | **داشبورد ERP** | `/dashboard/dashboard` | ERP views | mock — **آخر** |
@@ -358,20 +358,20 @@ scripts/
 
 ### ۳.۱ Prisma
 
-- [ ] `InternalRequest` · `ApprovalStep`
+- [x] `InternalRequest` · `ApprovalStep`
 
 ### ۳.۲ API
 
-- [ ] `GET/POST .../requests`
-- [ ] `PATCH .../requests/[id]` — close/reopen
-- [ ] `POST .../requests/[id]/approval` — submit/approve/reject/forward/cancel/comment
-- [ ] `GET .../pending-approvals`
+- [x] `GET/POST .../requests`
+- [x] `PATCH .../request-update` — close/reopen
+- [x] `POST .../request-approval` — submit/approve/reject/forward/cancel/comment
+- [x] `GET .../pending-approvals`
 
 ### ۳.۳ Wiring
 
-- [ ] `RequestsPanel` · `CommsHubPanel` (requests)
-- [ ] `MeizitoChatEmbed.addInternalRequest` → API
-- [ ] referrals از team-directory (فاز ۱)
+- [x] `RequestsPanel` · `CommsHubPanel` (requests)
+- [x] `MeizitoChatEmbed.addInternalRequest` → API
+- [x] referrals از team-directory (فاز ۱)
 
 ### ۳.۴ Nextcloud
 
@@ -379,8 +379,8 @@ scripts/
 
 ### ۳.۵ حذف mock · Logging · Smoke
 
-- [ ] seed `internalRequests` حذف
-- [ ] `scripts/meizito-smoke-requests.ts` · `npm run test:meizito:requests`
+- [x] seed `internalRequests` حذف
+- [x] `scripts/meizito-smoke-requests.ts` · `npm run test:meizito:requests`
 
 **✅ DoD فاز ۳:** CRUD + approval end-to-end · mock صفر
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۲ ✅ · فاز ۳ ⬜ (درخواست‌ها)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۳ ✅ · فاز ۴ ⬜ (نامه‌ها)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

@@ -231,6 +231,7 @@ model Business {
   workspaceNotes   WorkspaceNote[]
   dailyReports     DailyReport[]
   fieldVisits      FieldVisit[]
+  internalRequests InternalRequest[]
 
   @@index([status])
   @@index([createdById])
@@ -468,4 +469,67 @@ model FieldVisit {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId, dateKey])
+}
+
+enum InternalRequestStatus {
+  open
+  closed
+}
+
+enum InternalRequestPriority {
+  low
+  medium
+  high
+}
+
+model InternalRequest {
+  id                    String                  @id @default(cuid())
+  businessId            String
+  subject               String
+  body                  String                  @default("")
+  status                InternalRequestStatus   @default(open)
+  priority              InternalRequestPriority @default(medium)
+  category              String                  @default("")
+  authorUserId          String
+  authorName            String
+  referredToUserIds     Json                    @default("[]")
+  referredTo            Json                    @default("[]")
+  ccUserIds             Json                    @default("[]")
+  attachments           Json                    @default("[]")
+  threadId              String?
+  replyToRequestId      String?
+  sourceChatMessageId   String?
+  approvalState         MeizitoApprovalState    @default(draft)
+  currentAssigneeUserId String?
+  submittedAt           DateTime?
+  closedAt              DateTime?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([authorUserId])
+  @@index([currentAssigneeUserId])
+  @@index([approvalState])
+}
+
+model MeizitoApprovalStep {
+  id               String                @id @default(cuid())
+  businessId       String
+  entityType       String
+  entityId         String
+  action           MeizitoApprovalAction
+  actorUserId      String
+  actorName        String
+  assigneeUserId   String?
+  comment          String?
+  forwardedToIds   Json                  @default("[]")
+  forwardedToNames Json                  @default("[]")
+  createdAt        DateTime              @default(now())
+
+  @@index([businessId, entityType, entityId])
+  @@index([businessId, assigneeUserId])
+  @@index([entityType, entityId])
 }
