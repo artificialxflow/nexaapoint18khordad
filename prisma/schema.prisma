@@ -224,6 +224,13 @@ model Business {
   profile     BusinessProfile?
   fiscalYears FiscalYear[]
   projects    AccountingProject[]
+  workspaceBoards  WorkspaceBoard[]
+  workspaceCards   WorkspaceCard[]
+  workspaceProjects WorkspaceProject[]
+  noteBoards       NoteBoard[]
+  workspaceNotes   WorkspaceNote[]
+  dailyReports     DailyReport[]
+  fieldVisits      FieldVisit[]
 
   @@index([status])
   @@index([createdById])
@@ -307,4 +314,158 @@ model AccountingProject {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@index([businessId])
+}
+
+enum DailyReportStatus {
+  draft
+  submitted
+}
+
+enum MeizitoRecurrenceKind {
+  none
+  daily
+  weekly
+}
+
+model WorkspaceBoard {
+  id           String   @id @default(cuid())
+  businessId   String
+  name         String
+  memberNames  Json     @default("[]")
+  labelPalette Json     @default("[]")
+  sortOrder    Int      @default(0)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  columns  WorkspaceColumn[]
+  cards    WorkspaceCard[]
+
+  @@index([businessId])
+}
+
+model WorkspaceColumn {
+  id      String @id @default(cuid())
+  boardId String
+  title   String
+  order   Int
+  cardIds Json   @default("[]")
+
+  board WorkspaceBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+}
+
+model WorkspaceCard {
+  id             String                @id @default(cuid())
+  businessId     String
+  boardId        String
+  columnId       String
+  title          String
+  description    String                @default("")
+  labelIds       Json                  @default("[]")
+  category       String                @default("")
+  assigneeUserId String?
+  assignee       String                @default("")
+  checklist      Json                  @default("[]")
+  attachments    Json                  @default("[]")
+  dueDate        String                @default("")
+  dueTime        String                @default("")
+  recurrence     MeizitoRecurrenceKind @default(none)
+  starred        Boolean               @default(false)
+  sortOrder      Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  business Business       @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  board    WorkspaceBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([boardId])
+  @@index([columnId])
+}
+
+model WorkspaceProject {
+  id           String   @id @default(cuid())
+  businessId   String
+  name         String
+  boardId      String?
+  ncFolderPath String?
+  memberIds    Json     @default("[]")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model NoteBoard {
+  id         String @id @default(cuid())
+  businessId String
+  name       String
+  color      String @default("#94a3b8")
+  order      Int    @default(0)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+}
+
+model WorkspaceNote {
+  id            String   @id @default(cuid())
+  businessId    String
+  boardId       String
+  title         String
+  content       String   @default("")
+  color         String   @default("#fef08a")
+  checklist     Json     @default("[]")
+  ncAttachments Json     @default("[]")
+  starred       Boolean  @default(false)
+  archived      Boolean  @default(false)
+  deletedAt     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([boardId])
+}
+
+model DailyReport {
+  id                String            @id @default(cuid())
+  businessId        String
+  authorUserId      String
+  authorName        String
+  dateKey           String
+  title             String            @default("")
+  body              String            @default("")
+  status            DailyReportStatus @default(draft)
+  managerApproved   Boolean           @default(false)
+  managerApprovedAt DateTime?
+  feedbackEntries   Json              @default("[]")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, dateKey])
+  @@index([authorUserId])
+}
+
+model FieldVisit {
+  id           String   @id @default(cuid())
+  businessId   String
+  authorUserId String
+  authorName   String
+  dateKey      String
+  details      Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, dateKey])
 }

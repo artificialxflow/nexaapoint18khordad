@@ -81,6 +81,73 @@ export function totalVisitorCount(v: MeizitoFieldVisit): number {
   return 1 + male + female;
 }
 
+export function normalizeFieldVisit(v: MeizitoFieldVisit): MeizitoFieldVisit {
+  let visitorGender = v.visitorGender;
+  let visitorTitle = v.visitorTitle;
+  let visitorFirstName = v.visitorFirstName ?? '';
+  let visitorLastName = v.visitorLastName ?? '';
+
+  if (!visitorFirstName && !visitorLastName && v.customerName?.trim()) {
+    const parsed = parseLegacyCustomerName(v.customerName);
+    visitorGender = visitorGender ?? parsed.visitorGender;
+    visitorTitle = visitorTitle ?? parsed.visitorTitle;
+    visitorFirstName = parsed.visitorFirstName;
+    visitorLastName = parsed.visitorLastName;
+  }
+
+  const maleCompanionCount = Math.max(0, v.maleCompanionCount ?? 0);
+  const femaleCompanionCount = Math.max(0, v.femaleCompanionCount ?? 0);
+  const customerName =
+    buildCustomerName({
+      visitorTitle,
+      visitorFirstName,
+      visitorLastName,
+      visitorGender,
+    }) !== '—'
+      ? buildCustomerName({
+          visitorTitle,
+          visitorFirstName,
+          visitorLastName,
+          visitorGender,
+        })
+      : v.customerName?.trim() || '—';
+
+  const designerName = v.designerName?.trim() || '';
+  const hasDesigner = v.hasDesigner ?? (!!designerName && designerName !== '—');
+  const visitedBy = v.visitedBy ?? (hasDesigner ? designerName : '—');
+  const timeFrom = v.timeFrom ?? v.time;
+  const timeTo = v.timeTo;
+  const withCounts = {
+    ...v,
+    visitorGender,
+    visitorTitle,
+    visitorFirstName,
+    visitorLastName,
+    maleCompanionCount,
+    femaleCompanionCount,
+    customerName,
+  };
+
+  return {
+    ...withCounts,
+    designerName: hasDesigner ? designerName || visitedBy : '—',
+    visitedBy,
+    hasDesigner,
+    designerMobile: v.designerMobile,
+    customerMobile: v.customerMobile,
+    priorityTags: v.priorityTags ?? [],
+    timeFrom,
+    timeTo,
+    purchaseProbability: v.purchaseProbability ?? 'unknown',
+    visitorCount: v.visitorCount ?? totalVisitorCount(withCounts),
+    visitKind: v.visitKind ?? 'new',
+    followUpActions: v.followUpActions ?? [],
+    productInterestIds: v.productInterestIds ?? [],
+    salesConsultantName: v.salesConsultantName ?? v.authorName,
+    description: v.description ?? v.notes,
+  };
+}
+
 const FA_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه'];
 
 export function formatVisitWeekday(dateKey: string): string {

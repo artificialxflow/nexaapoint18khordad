@@ -291,32 +291,32 @@ scripts/
 
 ### ۲.۱ Prisma + migrate
 
-- [ ] `WorkspaceBoard`, `WorkspaceColumn`, `WorkspaceCard`
-- [ ] `WorkspaceProject`, `WorkspaceProjectMember`
-- [ ] `NoteBoard`, `WorkspaceNote`
-- [ ] `DailyReport`, `FieldVisit`
-- [ ] migration: `…_meizito_workspace_v10`
+- [x] `WorkspaceBoard`, `WorkspaceColumn`, `WorkspaceCard`
+- [x] `WorkspaceProject`, `WorkspaceProjectMember`
+- [x] `NoteBoard`, `WorkspaceNote`
+- [x] `DailyReport`, `FieldVisit`
+- [x] migration: `…_meizito_workspace_v10`
 
 ### ۲.۲ API — Kanban
 
-- [ ] `GET/POST .../boards` · `PATCH .../boards/[id]`
-- [ ] `GET/POST .../boards/[id]/columns`
-- [ ] `GET/POST .../cards` · `PATCH/DELETE .../cards/[id]`
-- [ ] `POST .../cards/[id]/move`
-- [ ] `GET .../cards/search?q=`
+- [x] `GET/POST .../boards` · `PATCH .../boards/[id]`
+- [x] `GET/POST .../boards/[id]/columns`
+- [x] `GET/POST .../cards` · `PATCH/DELETE .../cards/[id]`
+- [x] `POST .../card-move`
+- [x] `GET .../card-search?boardId=&q=`
 
 ### ۲.۳ API — Projects / Notes / Reports
 
-- [ ] Projects CRUD + default `ncFolderPath`
-- [ ] Note boards + notes CRUD · star · archive
-- [ ] Daily reports CRUD · submit · feedback · approve
-- [ ] Field visits CRUD
+- [x] Projects CRUD + default `ncFolderPath`
+- [x] Note boards + notes CRUD · star · archive
+- [x] Daily reports CRUD · submit · feedback · approve
+- [x] Field visits CRUD
 
 ### ۲.۴ Nextcloud
 
-- [ ] card attachments — path با `businessId`
-- [ ] note `ncAttachments`
-- [ ] project folder — `NcFolderLinkButton` path جدید
+- [x] card attachments — path با `businessId`
+- [x] note `ncAttachments`
+- [x] project folder — `NcFolderLinkButton` path جدید
 
 ### ۲.۵ Context wiring (بدون تغییر UI)
 
@@ -333,17 +333,17 @@ scripts/
 
 ### ۲.۶ حذف mock
 
-- [ ] حذف seed boards/columns/cards/projects/notes/reports/visits
+- [x] حذف seed boards/columns/cards/projects/notes/reports/visits
 - [ ] `assigneeUserId` در DB · displayName در serialize برای UI
 
 ### ۲.۷ Logging
 
-- [ ] card move/create · report submit/approve · visit create → log + audit
+- [x] card move/create · report submit/approve · visit create → log + audit
 
 ### ۲.۸ Smoke
 
-- [ ] `scripts/meizito-smoke-workspace.ts`
-- [ ] `npm run test:meizito:workspace`
+- [x] `scripts/meizito-smoke-workspace.ts`
+- [x] `npm run test:meizito:workspace`
 
 **✅ DoD فاز ۲:** tabهای workspace بالا کاملاً DB · بدون localStorage entity · NC tenant · smoke سبز
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۱ ✅ · فاز ۲ ⬜ (میز کار)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۲ ✅ · فاز ۳ ⬜ (درخواست‌ها)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

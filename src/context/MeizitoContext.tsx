@@ -55,11 +55,7 @@ import {
   normalizeInternalRequest as normalizeRequestReferrals,
   primaryAssigneeFromReferrals,
 } from '@/src/lib/meizito/teamHierarchy';
-import {
-  buildCustomerName,
-  parseLegacyCustomerName,
-  totalVisitorCount,
-} from '@/src/lib/meizito/visitHelpers';
+import { normalizeFieldVisit } from '@/src/lib/meizito/visitHelpers';
 import { useAuthOptional } from '@/src/context/AuthContext';
 import { useBusinessOptional } from '@/src/context/BusinessContext';
 import {
@@ -68,6 +64,27 @@ import {
   type MeizitoDataSources,
 } from '@/src/lib/meizito/config';
 import { meizitoFetch } from '@/src/lib/meizito/client';
+import {
+  apiAddColumn,
+  apiCreateBoard,
+  apiCreateCard,
+  apiCreateDailyReport,
+  apiCreateFieldVisit,
+  apiCreateNote,
+  apiCreateNoteBoard,
+  apiCreateProject,
+  apiDailyReportFeedback,
+  apiDeleteFieldVisit,
+  apiMoveCard,
+  apiUpdateBoard,
+  apiUpdateCard,
+  apiUpdateDailyReport,
+  apiUpdateFieldVisit,
+  apiUpdateNote,
+  apiUpdateProject,
+  fetchWorkspaceSnapshot,
+} from '@/src/lib/meizito/workspace/client';
+import type { WorkspaceSnapshot } from '@/src/lib/meizito/workspace/serialize';
 
 export { MEIZITO_CURRENT_USER_NAME };
 
@@ -198,74 +215,6 @@ function normalizeNote(n: MeizitoNote, defaultBoardId: string): MeizitoNote {
   };
 }
 
-function normalizeFieldVisit(v: MeizitoFieldVisit): MeizitoFieldVisit {
-  let visitorGender = v.visitorGender;
-  let visitorTitle = v.visitorTitle;
-  let visitorFirstName = v.visitorFirstName ?? '';
-  let visitorLastName = v.visitorLastName ?? '';
-
-  if (!visitorFirstName && !visitorLastName && v.customerName?.trim()) {
-    const parsed = parseLegacyCustomerName(v.customerName);
-    visitorGender = visitorGender ?? parsed.visitorGender;
-    visitorTitle = visitorTitle ?? parsed.visitorTitle;
-    visitorFirstName = parsed.visitorFirstName;
-    visitorLastName = parsed.visitorLastName;
-  }
-
-  const maleCompanionCount = Math.max(0, v.maleCompanionCount ?? 0);
-  const femaleCompanionCount = Math.max(0, v.femaleCompanionCount ?? 0);
-  const customerName =
-    buildCustomerName({
-      visitorTitle,
-      visitorFirstName,
-      visitorLastName,
-      visitorGender,
-    }) !== '—'
-      ? buildCustomerName({
-          visitorTitle,
-          visitorFirstName,
-          visitorLastName,
-          visitorGender,
-        })
-      : v.customerName?.trim() || '—';
-
-  const designerName = v.designerName?.trim() || '';
-  const hasDesigner =
-    v.hasDesigner ?? (!!designerName && designerName !== '—');
-  const visitedBy = v.visitedBy ?? (hasDesigner ? designerName : '—');
-  const timeFrom = v.timeFrom ?? v.time;
-  const timeTo = v.timeTo;
-  const withCounts = {
-    ...v,
-    visitorGender,
-    visitorTitle,
-    visitorFirstName,
-    visitorLastName,
-    maleCompanionCount,
-    femaleCompanionCount,
-    customerName,
-  };
-
-  return {
-    ...withCounts,
-    designerName: hasDesigner ? designerName || visitedBy : '—',
-    visitedBy,
-    hasDesigner,
-    designerMobile: v.designerMobile,
-    customerMobile: v.customerMobile,
-    priorityTags: v.priorityTags ?? [],
-    timeFrom,
-    timeTo,
-    purchaseProbability: v.purchaseProbability ?? 'unknown',
-    visitorCount: v.visitorCount ?? totalVisitorCount(withCounts),
-    visitKind: v.visitKind ?? 'new',
-    followUpActions: v.followUpActions ?? [],
-    productInterestIds: v.productInterestIds ?? [],
-    salesConsultantName: v.salesConsultantName ?? v.authorName,
-    description: v.description ?? v.notes,
-  };
-}
-
 function normalizeInternalRequest(r: MeizitoInternalRequest): MeizitoInternalRequest {
   const legacyApproved = !r.approvalState && !r.submittedAt;
   const approval = normalizeApprovableFields(
@@ -378,7 +327,7 @@ function dateKeyOffset(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-function seedData() {
+function seedWorkspaceMock() {
   const bId = 'board-1';
   const c1 = 'col-todo';
   const c2 = 'col-doing';
@@ -469,73 +418,6 @@ function seedData() {
     { id: c2, boardId: bId, title: 'در حال انجام', order: 1, cardIds: [card2.id, card4.id] },
     { id: c3, boardId: bId, title: 'انجام شده', order: 2, cardIds: [] },
   ];
-  const thDirect = 'thread-direct';
-  const thGroup = 'thread-group';
-  const thChannel = 'thread-channel';
-  const now = new Date().toISOString();
-  const msg1: MeizitoChatMessage = {
-    id: 'msg-1',
-    threadId: thDirect,
-    author: 'واحد تولید',
-    body: 'سلام، گزارش QC خط تولید امروز آماده شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg2: MeizitoChatMessage = {
-    id: 'msg-2',
-    threadId: thDirect,
-    author: MEIZITO_CURRENT_USER_NAME,
-    body: 'عالیه، لطفاً فایل نهایی را همینجا ارسال کنید.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg3: MeizitoChatMessage = {
-    id: 'msg-3',
-    threadId: thGroup,
-    author: 'سارا',
-    body: 'فاکتور جدید در سیستم ثبت شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg4: MeizitoChatMessage = {
-    id: 'msg-4',
-    threadId: thChannel,
-    author: 'مدیریت',
-    body: 'بخشنامه جدید حقوق و مزایا صادر شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const threadDirect: MeizitoChatThread = {
-    id: thDirect,
-    title: 'واحد تولید',
-    threadType: 'direct',
-    participantNames: ['واحد تولید'],
-    starred: false,
-    pinned: false,
-    messageIds: [msg1.id, msg2.id],
-  };
-  const threadGroup: MeizitoChatThread = {
-    id: thGroup,
-    title: 'تیم فروش نکسایی',
-    threadType: 'group',
-    participantNames: ['امیرحسین', 'سارا', 'رضا'],
-    starred: true,
-    pinned: true,
-    messageIds: [msg3.id],
-  };
-  const threadChannel: MeizitoChatThread = {
-    id: thChannel,
-    title: 'اطلاعیه‌های سازمان',
-    threadType: 'channel',
-    participantNames: [],
-    starred: false,
-    pinned: false,
-    messageIds: [msg4.id],
-  };
   return {
     boards: [board],
     columns,
@@ -549,63 +431,7 @@ function seedData() {
         ncFolderPath: '/Nexa/projects/proj-1/',
       },
     ],
-    threads: [threadDirect, threadGroup, threadChannel],
-    messages: [msg1, msg2, msg3, msg4],
-    letters: (() => {
-      const threadLet = 'thread-let-1';
-      const t0 = new Date(Date.now() - 2 * 86400000).toISOString();
-      const t1 = new Date(Date.now() - 86400000).toISOString();
-      return [
-        {
-          id: 'let-1',
-          subject: 'درخواست جلسه',
-          body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.',
-          to: ['مدیر فروش'],
-          labels: ['اداری'],
-          category: 'administrative' as const,
-          status: 'open' as const,
-          box: 'inbox' as const,
-          referredTo: ['واحد مالی'],
-          referredFrom: MEIZITO_CURRENT_USER_NAME,
-          threadId: threadLet,
-          attachments: [],
-          createdAt: t0,
-        },
-        {
-          id: 'let-2',
-          subject: 'Re: درخواست جلسه',
-          body: 'با سلام،\nموضوع در دست بررسی است.\n\n---\nنامه قبلی:\nدرخواست جلسه...',
-          to: [MEIZITO_CURRENT_USER_NAME],
-          labels: ['اداری'],
-          category: 'administrative' as const,
-          status: 'open' as const,
-          box: 'inbox' as const,
-          referredTo: [],
-          referredFrom: 'مدیر فروش',
-          replyToLetterId: 'let-1',
-          threadId: threadLet,
-          attachments: [],
-          createdAt: t1,
-        },
-        {
-          id: 'let-3',
-          subject: 'گزارش ماهانه',
-          body: 'پیوست گزارش ارسال شد.',
-          to: ['مدیریت'],
-          labels: ['گزارش', 'مالی'],
-          category: 'financial' as const,
-          status: 'closed' as const,
-          box: 'archive' as const,
-          referredTo: ['مدیریت'],
-          referredFrom: MEIZITO_CURRENT_USER_NAME,
-          threadId: 'thread-let-2',
-          attachments: [{ name: 'report.pdf', size: '۲۴۰ KB' }],
-          createdAt: new Date().toISOString(),
-        },
-      ];
-    })(),
     dailyReports: (() => {
-      const todayKey = dateKeyOffset(0);
       const now = new Date().toISOString();
       return [
         {
@@ -644,7 +470,6 @@ function seedData() {
       ];
     })(),
     fieldVisits: (() => {
-      const todayKey = dateKeyOffset(0);
       const now = new Date().toISOString();
       return [
         {
@@ -724,7 +549,6 @@ function seedData() {
         },
       ];
     })(),
-    currentUserId: DEFAULT_USER_ID,
     noteBoards: [
       { id: 'note-board-general', name: 'عمومی', color: '#fef08a', order: 0 },
       { id: 'note-board-work', name: 'کاری', color: '#bbf7d0', order: 1 },
@@ -754,6 +578,136 @@ function seedData() {
       },
     ],
     activeNoteBoardId: 'note-board-general',
+    activeBoardId: bId,
+  };
+}
+
+function seedData() {
+  const todayKey = dateKeyOffset(0);
+  const thDirect = 'thread-direct';
+  const thGroup = 'thread-group';
+  const thChannel = 'thread-channel';
+  const now = new Date().toISOString();
+  const msg1: MeizitoChatMessage = {
+    id: 'msg-1',
+    threadId: thDirect,
+    author: 'واحد تولید',
+    body: 'سلام، گزارش QC خط تولید امروز آماده شد.',
+    createdAt: now,
+    type: 'text',
+    attachmentNames: [],
+  };
+  const msg2: MeizitoChatMessage = {
+    id: 'msg-2',
+    threadId: thDirect,
+    author: MEIZITO_CURRENT_USER_NAME,
+    body: 'عالیه، لطفاً فایل نهایی را همینجا ارسال کنید.',
+    createdAt: now,
+    type: 'text',
+    attachmentNames: [],
+  };
+  const msg3: MeizitoChatMessage = {
+    id: 'msg-3',
+    threadId: thGroup,
+    author: 'سارا',
+    body: 'فاکتور جدید در سیستم ثبت شد.',
+    createdAt: now,
+    type: 'text',
+    attachmentNames: [],
+  };
+  const msg4: MeizitoChatMessage = {
+    id: 'msg-4',
+    threadId: thChannel,
+    author: 'مدیریت',
+    body: 'بخشنامه جدید حقوق و مزایا صادر شد.',
+    createdAt: now,
+    type: 'text',
+    attachmentNames: [],
+  };
+  const threadDirect: MeizitoChatThread = {
+    id: thDirect,
+    title: 'واحد تولید',
+    threadType: 'direct',
+    participantNames: ['واحد تولید'],
+    starred: false,
+    pinned: false,
+    messageIds: [msg1.id, msg2.id],
+  };
+  const threadGroup: MeizitoChatThread = {
+    id: thGroup,
+    title: 'تیم فروش نکسایی',
+    threadType: 'group',
+    participantNames: ['امیرحسین', 'سارا', 'رضا'],
+    starred: true,
+    pinned: true,
+    messageIds: [msg3.id],
+  };
+  const threadChannel: MeizitoChatThread = {
+    id: thChannel,
+    title: 'اطلاعیه‌های سازمان',
+    threadType: 'channel',
+    participantNames: [],
+    starred: false,
+    pinned: false,
+    messageIds: [msg4.id],
+  };
+  return {
+    threads: [threadDirect, threadGroup, threadChannel],
+    messages: [msg1, msg2, msg3, msg4],
+    letters: (() => {
+      const threadLet = 'thread-let-1';
+      const t0 = new Date(Date.now() - 2 * 86400000).toISOString();
+      const t1 = new Date(Date.now() - 86400000).toISOString();
+      return [
+        {
+          id: 'let-1',
+          subject: 'درخواست جلسه',
+          body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.',
+          to: ['مدیر فروش'],
+          labels: ['اداری'],
+          category: 'administrative' as const,
+          status: 'open' as const,
+          box: 'inbox' as const,
+          referredTo: ['واحد مالی'],
+          referredFrom: MEIZITO_CURRENT_USER_NAME,
+          threadId: threadLet,
+          attachments: [],
+          createdAt: t0,
+        },
+        {
+          id: 'let-2',
+          subject: 'Re: درخواست جلسه',
+          body: 'با سلام،\nموضوع در دست بررسی است.\n\n---\nنامه قبلی:\nدرخواست جلسه...',
+          to: [MEIZITO_CURRENT_USER_NAME],
+          labels: ['اداری'],
+          category: 'administrative' as const,
+          status: 'open' as const,
+          box: 'inbox' as const,
+          referredTo: [],
+          referredFrom: 'مدیر فروش',
+          replyToLetterId: 'let-1',
+          threadId: threadLet,
+          attachments: [],
+          createdAt: t1,
+        },
+        {
+          id: 'let-3',
+          subject: 'گزارش ماهانه',
+          body: 'پیوست گزارش ارسال شد.',
+          to: ['مدیریت'],
+          labels: ['گزارش', 'مالی'],
+          category: 'financial' as const,
+          status: 'closed' as const,
+          box: 'archive' as const,
+          referredTo: ['مدیریت'],
+          referredFrom: MEIZITO_CURRENT_USER_NAME,
+          threadId: 'thread-let-2',
+          attachments: [{ name: 'report.pdf', size: '۲۴۰ KB' }],
+          createdAt: new Date().toISOString(),
+        },
+      ];
+    })(),
+    currentUserId: DEFAULT_USER_ID,
     calendars: defaultCalendarsSeed(),
     calendarEvents: [
       {
@@ -814,7 +768,6 @@ function seedData() {
         ],
       },
     ],
-    activeBoardId: bId,
     activeThreadId: thDirect,
   };
 }
@@ -958,11 +911,19 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
-  const [boards, setBoards] = useState<MeizitoBoard[]>(() => stored.boards ?? seed.boards);
-  const [columns, setColumns] = useState<MeizitoColumn[]>(() => stored.columns ?? seed.columns);
-  const [cards, setCards] = useState<MeizitoCard[]>(() => stored.cards ?? seed.cards);
+  const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
+  const workspaceFromApi = dataSources.workspace === 'api';
+  const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
+    workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
+  );
+  const [columns, setColumns] = useState<MeizitoColumn[]>(() =>
+    workspaceFromApi ? [] : (stored.columns ?? workspaceSeed.columns)
+  );
+  const [cards, setCards] = useState<MeizitoCard[]>(() =>
+    workspaceFromApi ? [] : (stored.cards ?? workspaceSeed.cards)
+  );
   const [projects, setProjects] = useState<MeizitoProject[]>(() =>
-    (stored.projects ?? seed.projects).map(normalizeProject)
+    workspaceFromApi ? [] : (stored.projects ?? workspaceSeed.projects).map(normalizeProject)
   );
   const [threads, setThreads] = useState<MeizitoChatThread[]>(() => stored.threads ?? seed.threads);
   const [messages, setMessages] = useState<MeizitoChatMessage[]>(() => stored.messages ?? seed.messages);
@@ -970,10 +931,14 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     (stored.letters ?? seed.letters).map(normalizeLetter)
   );
   const [dailyReports, setDailyReports] = useState<MeizitoDailyReport[]>(() =>
-    (stored.dailyReports ?? seed.dailyReports ?? []).map(normalizeDailyReport)
+    workspaceFromApi
+      ? []
+      : (stored.dailyReports ?? workspaceSeed.dailyReports ?? []).map(normalizeDailyReport)
   );
   const [fieldVisits, setFieldVisits] = useState<MeizitoFieldVisit[]>(() =>
-    (stored.fieldVisits ?? seed.fieldVisits ?? []).map(normalizeFieldVisit)
+    workspaceFromApi
+      ? []
+      : (stored.fieldVisits ?? workspaceSeed.fieldVisits ?? []).map(normalizeFieldVisit)
   );
   const [internalRequests, setInternalRequests] = useState<MeizitoInternalRequest[]>(() =>
     (stored.internalRequests ?? seed.internalRequests ?? []).map(normalizeInternalRequest)
@@ -981,17 +946,20 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const [currentUserId, setCurrentUserIdState] = useState(
     () => stored.currentUserId ?? seed.currentUserId ?? DEFAULT_USER_ID
   );
-  const [noteBoards, setNoteBoards] = useState<MeizitoNoteBoard[]>(
-    () => stored.noteBoards ?? seed.noteBoards ?? []
+  const [noteBoards, setNoteBoards] = useState<MeizitoNoteBoard[]>(() =>
+    workspaceFromApi ? [] : (stored.noteBoards ?? workspaceSeed.noteBoards ?? [])
   );
   const [notes, setNotes] = useState<MeizitoNote[]>(() => {
-    const boards = stored.noteBoards ?? seed.noteBoards ?? [];
-    const defaultBoardId = boards[0]?.id ?? DEFAULT_NOTE_BOARD_ID;
-    const raw = stored.notes ?? seed.notes ?? [];
+    if (workspaceFromApi) return [];
+    const nb = stored.noteBoards ?? workspaceSeed.noteBoards ?? [];
+    const defaultBoardId = nb[0]?.id ?? DEFAULT_NOTE_BOARD_ID;
+    const raw = stored.notes ?? workspaceSeed.notes ?? [];
     return raw.map((n) => normalizeNote(n, defaultBoardId));
   });
-  const [activeNoteBoardId, setActiveNoteBoardIdState] = useState(
-    () => stored.activeNoteBoardId ?? seed.activeNoteBoardId ?? DEFAULT_NOTE_BOARD_ID
+  const [activeNoteBoardId, setActiveNoteBoardIdState] = useState(() =>
+    workspaceFromApi
+      ? DEFAULT_NOTE_BOARD_ID
+      : (stored.activeNoteBoardId ?? workspaceSeed.activeNoteBoardId ?? DEFAULT_NOTE_BOARD_ID)
   );
   const [calendars, setCalendars] = useState<MeizitoCalendar[]>(() =>
     (stored.calendars ?? seed.calendars ?? defaultCalendarsSeed()).map(normalizeCalendar)
@@ -1002,7 +970,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const [activeCalendarId, setActiveCalendarIdState] = useState(
     () => stored.activeCalendarId ?? seed.activeCalendarId ?? 'cal-customer'
   );
-  const [activeBoardId, setActiveBoardIdState] = useState(() => stored.activeBoardId ?? seed.activeBoardId);
+  const [activeBoardId, setActiveBoardIdState] = useState(() =>
+    workspaceFromApi ? '' : (stored.activeBoardId ?? workspaceSeed.activeBoardId)
+  );
   const [activeThreadId, setActiveThreadIdState] = useState(() => stored.activeThreadId ?? seed.activeThreadId);
 
   const directoryUsers = useMemo(
@@ -1030,6 +1000,53 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     void refreshTeamDirectory();
   }, [refreshTeamDirectory]);
 
+  const applyWorkspaceSnapshot = useCallback((snapshot: WorkspaceSnapshot) => {
+    setBoards(snapshot.boards);
+    setColumns(snapshot.columns);
+    setCards(snapshot.cards);
+    setProjects(snapshot.projects.map(normalizeProject));
+    setNoteBoards(snapshot.noteBoards);
+    const defaultNoteBoardId = snapshot.noteBoards[0]?.id ?? DEFAULT_NOTE_BOARD_ID;
+    setNotes(snapshot.notes.map((n) => normalizeNote(n, defaultNoteBoardId)));
+    setDailyReports(snapshot.dailyReports.map(normalizeDailyReport));
+    setFieldVisits(snapshot.fieldVisits.map(normalizeFieldVisit));
+    setActiveBoardIdState((prev) => {
+      if (prev && snapshot.boards.some((b) => b.id === prev)) return prev;
+      return snapshot.activeBoardId ?? prev ?? '';
+    });
+    setActiveNoteBoardIdState((prev) => {
+      if (prev && snapshot.noteBoards.some((b) => b.id === prev)) return prev;
+      return snapshot.activeNoteBoardId ?? prev ?? DEFAULT_NOTE_BOARD_ID;
+    });
+  }, []);
+
+  const refreshWorkspace = useCallback(async () => {
+    if (dataSources.workspace !== 'api' || !activeBusinessId) return;
+    try {
+      const snapshot = await fetchWorkspaceSnapshot(activeBusinessId);
+      applyWorkspaceSnapshot(snapshot);
+    } catch {
+      applyWorkspaceSnapshot({
+        boards: [],
+        columns: [],
+        cards: [],
+        projects: [],
+        noteBoards: [],
+        notes: [],
+        dailyReports: [],
+        fieldVisits: [],
+        activeBoardId: null,
+        activeNoteBoardId: null,
+      });
+    }
+  }, [activeBusinessId, applyWorkspaceSnapshot, dataSources.workspace]);
+
+  useEffect(() => {
+    void refreshWorkspace();
+  }, [refreshWorkspace]);
+
+  const useWorkspaceApi = dataSources.workspace === 'api' && !!activeBusinessId;
+
   useEffect(() => {
     if (dataSources.teamDirectory !== 'api' || !sessionUserId) return;
     setCurrentUserIdState(sessionUserId);
@@ -1037,6 +1054,23 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (dataSources.workspace === 'api') {
+      const payload: Stored = {
+        threads,
+        messages,
+        letters,
+        internalRequests,
+        currentUserId,
+        calendars,
+        calendarEvents,
+        activeCalendarId,
+        activeBoardId,
+        activeNoteBoardId,
+        activeThreadId,
+      };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      return;
+    }
     const payload: Stored = {
       boards,
       columns,
@@ -1086,46 +1120,73 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const setActiveNoteBoardId = useCallback((id: string) => setActiveNoteBoardIdState(id), []);
   const setActiveCalendarId = useCallback((id: string) => setActiveCalendarIdState(id), []);
 
-  const updateBoard = useCallback((id: string, patch: Partial<Pick<MeizitoBoard, 'name' | 'memberNames'>>) => {
-    setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-  }, []);
+  const updateBoard = useCallback(
+    (id: string, patch: Partial<Pick<MeizitoBoard, 'name' | 'memberNames'>>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateBoard(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
+      setBoards((prev) => prev.map((b) => (b.id === id ? { ...b, ...patch } : b)));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const addBoard = useCallback((name: string) => {
-    const id = newId();
-    const c1 = newId();
-    const c2 = newId();
-    const c3 = newId();
-    const nb: MeizitoBoard = {
-      id,
-      name: name.trim() || 'میز جدید',
-      memberNames: [],
-      columnIds: [c1, c2, c3],
-      labelPalette: [
-        { id: newId(), name: 'برچسب', color: '#94a3b8' },
-      ],
-    };
-    setBoards((prev) => [...prev, nb]);
-    setColumns((prev) => [
-      ...prev,
-      { id: c1, boardId: id, title: 'برای انجام', order: 0, cardIds: [] },
-      { id: c2, boardId: id, title: 'در حال انجام', order: 1, cardIds: [] },
-      { id: c3, boardId: id, title: 'انجام شده', order: 2, cardIds: [] },
-    ]);
-    setActiveBoardIdState(id);
-  }, []);
+  const addBoard = useCallback(
+    (name: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void (async () => {
+          const { board } = await apiCreateBoard(activeBusinessId, name);
+          await refreshWorkspace();
+          setActiveBoardIdState(board.id);
+        })();
+        return;
+      }
+      const id = newId();
+      const c1 = newId();
+      const c2 = newId();
+      const c3 = newId();
+      const nb: MeizitoBoard = {
+        id,
+        name: name.trim() || 'میز جدید',
+        memberNames: [],
+        columnIds: [c1, c2, c3],
+        labelPalette: [{ id: newId(), name: 'برچسب', color: '#94a3b8' }],
+      };
+      setBoards((prev) => [...prev, nb]);
+      setColumns((prev) => [
+        ...prev,
+        { id: c1, boardId: id, title: 'برای انجام', order: 0, cardIds: [] },
+        { id: c2, boardId: id, title: 'در حال انجام', order: 1, cardIds: [] },
+        { id: c3, boardId: id, title: 'انجام شده', order: 2, cardIds: [] },
+      ]);
+      setActiveBoardIdState(id);
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const addColumn = useCallback((boardId: string, title: string) => {
-    const id = newId();
-    const board = boards.find((b) => b.id === boardId);
-    const order = board ? board.columnIds.length : 0;
-    setColumns((prev) => [...prev, { id, boardId, title: title.trim() || 'ستون', order, cardIds: [] }]);
-    setBoards((prev) =>
-      prev.map((b) => (b.id === boardId ? { ...b, columnIds: [...b.columnIds, id] } : b))
-    );
-  }, [boards]);
+  const addColumn = useCallback(
+    (boardId: string, title: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiAddColumn(activeBusinessId, boardId, title).then(() => refreshWorkspace());
+        return;
+      }
+      const id = newId();
+      const board = boards.find((b) => b.id === boardId);
+      const order = board ? board.columnIds.length : 0;
+      setColumns((prev) => [...prev, { id, boardId, title: title.trim() || 'ستون', order, cardIds: [] }]);
+      setBoards((prev) =>
+        prev.map((b) => (b.id === boardId ? { ...b, columnIds: [...b.columnIds, id] } : b))
+      );
+    },
+    [boards, useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const addCard = useCallback(
     (boardId: string, columnId: string, title: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateCard(activeBusinessId, { boardId, columnId, title }).then(() => refreshWorkspace());
+        return;
+      }
       const id = newId();
       const card: MeizitoCard = {
         id,
@@ -1148,29 +1209,43 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         prev.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds, id] } : c))
       );
     },
-    []
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const moveCard = useCallback((cardId: string, toColumnId: string, index: number) => {
-    setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, columnId: toColumnId } : c)));
-    setColumns((prev) => {
-      const stripped = prev.map((col) => ({
-        ...col,
-        cardIds: col.cardIds.filter((id) => id !== cardId),
-      }));
-      return stripped.map((col) => {
-        if (col.id !== toColumnId) return col;
-        const ids = [...col.cardIds];
-        const i = Math.max(0, Math.min(index, ids.length));
-        ids.splice(i, 0, cardId);
-        return { ...col, cardIds: ids };
+  const moveCard = useCallback(
+    (cardId: string, toColumnId: string, index: number) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiMoveCard(activeBusinessId, cardId, toColumnId).then(() => refreshWorkspace());
+        return;
+      }
+      setCards((prev) => prev.map((c) => (c.id === cardId ? { ...c, columnId: toColumnId } : c)));
+      setColumns((prev) => {
+        const stripped = prev.map((col) => ({
+          ...col,
+          cardIds: col.cardIds.filter((id) => id !== cardId),
+        }));
+        return stripped.map((col) => {
+          if (col.id !== toColumnId) return col;
+          const ids = [...col.cardIds];
+          const i = Math.max(0, Math.min(index, ids.length));
+          ids.splice(i, 0, cardId);
+          return { ...col, cardIds: ids };
+        });
       });
-    });
-  }, []);
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const updateCard = useCallback((id: string, patch: Partial<MeizitoCard>) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  }, []);
+  const updateCard = useCallback(
+    (id: string, patch: Partial<MeizitoCard>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateCard(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const copyCardForAssignees = useCallback(
     (cardId: string, assignees: string[]) => {
@@ -1180,6 +1255,26 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         columns.find((c) => c.boardId === src.boardId && c.order === 0) ||
         columns.find((c) => c.id === src.columnId);
       if (!col) return;
+      if (useWorkspaceApi && activeBusinessId) {
+        void (async () => {
+          for (const assignee of assignees) {
+            await apiCreateCard(activeBusinessId, {
+              boardId: src.boardId,
+              columnId: col.id,
+              title: src.title,
+              description: src.description,
+              assignee: assignee.trim(),
+              dueDate: src.dueDate,
+              dueTime: src.dueTime,
+              recurrence: src.recurrence,
+              category: src.category,
+              labelIds: src.labelIds,
+            });
+          }
+          await refreshWorkspace();
+        })();
+        return;
+      }
       const copies: MeizitoCard[] = assignees.map((assignee) => ({
         ...src,
         id: newId(),
@@ -1195,30 +1290,59 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         )
       );
     },
-    [cards, columns]
+    [cards, columns, useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const toggleCardStar = useCallback((id: string) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, starred: !c.starred } : c)));
-  }, []);
+  const toggleCardStar = useCallback(
+    (id: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        const card = cards.find((c) => c.id === id);
+        if (!card) return;
+        void apiUpdateCard(activeBusinessId, id, { starred: !card.starred }).then(() =>
+          refreshWorkspace()
+        );
+        return;
+      }
+      setCards((prev) => prev.map((c) => (c.id === id ? { ...c, starred: !c.starred } : c)));
+    },
+    [cards, useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const addProject = useCallback((name: string, memberIds: string[], boardId?: string) => {
-    const id = newId();
-    setProjects((prev) => [
-      ...prev,
-      {
-        id,
-        name: name.trim() || 'پروژه',
-        memberIds,
-        boardId: boardId || undefined,
-        ncFolderPath: `/Nexa/projects/${id}/`,
-      },
-    ]);
-  }, []);
+  const addProject = useCallback(
+    (name: string, memberIds: string[], boardId?: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateProject(activeBusinessId, {
+          name,
+          memberIds,
+          boardId: boardId || undefined,
+        }).then(() => refreshWorkspace());
+        return;
+      }
+      const id = newId();
+      setProjects((prev) => [
+        ...prev,
+        {
+          id,
+          name: name.trim() || 'پروژه',
+          memberIds,
+          boardId: boardId || undefined,
+          ncFolderPath: `/Nexa/projects/${id}/`,
+        },
+      ]);
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const updateProject = useCallback((id: string, patch: Partial<MeizitoProject>) => {
-    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
-  }, []);
+  const updateProject = useCallback(
+    (id: string, patch: Partial<MeizitoProject>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateProject(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
+      setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const addMessage = useCallback(
     (
@@ -1275,6 +1399,17 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const createCardFromText = useCallback(
     (boardId: string, columnId: string, title: string, assignee: string, dueDate: string, recurrence: MeizitoRecurrence) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateCard(activeBusinessId, {
+          boardId,
+          columnId,
+          title,
+          assignee,
+          dueDate,
+          recurrence,
+        }).then(() => refreshWorkspace());
+        return;
+      }
       const id = newId();
       const card: MeizitoCard = {
         id,
@@ -1297,7 +1432,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         prev.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds, id] } : c))
       );
     },
-    []
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
   const toggleThreadStar = useCallback((id: string) => {
@@ -1396,6 +1531,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const addDailyReport = useCallback(
     (report: Omit<MeizitoDailyReport, 'id' | 'createdAt' | 'updatedAt'>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateDailyReport(activeBusinessId, report).then(() => refreshWorkspace());
+        return newId();
+      }
       const now = new Date().toISOString();
       const id = newId();
       setDailyReports((prev) => [
@@ -1404,25 +1543,45 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       ]);
       return id;
     },
-    []
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
   const updateDailyReport = useCallback(
     (id: string, patch: Partial<Pick<MeizitoDailyReport, 'title' | 'body' | 'status'>>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateDailyReport(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
       const now = new Date().toISOString();
       setDailyReports((prev) =>
         prev.map((r) => (r.id === id ? { ...r, ...patch, updatedAt: now } : r))
       );
     },
-    []
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const submitDailyReport = useCallback((id: string) => {
-    updateDailyReport(id, { status: 'submitted' });
-  }, [updateDailyReport]);
+  const submitDailyReport = useCallback(
+    (id: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        if (!dailyReports.some((r) => r.id === id)) return;
+        void apiUpdateDailyReport(activeBusinessId, id, { status: 'submitted' }).then(() =>
+          refreshWorkspace()
+        );
+        return;
+      }
+      updateDailyReport(id, { status: 'submitted' });
+    },
+    [useWorkspaceApi, activeBusinessId, dailyReports, refreshWorkspace, updateDailyReport]
+  );
 
   const addFeedbackToReport = useCallback(
     (id: string, feedback: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiDailyReportFeedback(activeBusinessId, id, feedback, 'feedback').then(() =>
+          refreshWorkspace()
+        );
+        return;
+      }
       const now = new Date().toISOString();
       setDailyReports((prev) =>
         prev.map((r) => {
@@ -1447,11 +1606,17 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    [currentUserId, directoryUsers]
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace, currentUserId, directoryUsers]
   );
 
   const approveDailyReport = useCallback(
     (id: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiDailyReportFeedback(activeBusinessId, id, 'گزارش تایید شد.', 'approve').then(() =>
+          refreshWorkspace()
+        );
+        return;
+      }
       const now = new Date().toISOString();
       setDailyReports((prev) =>
         prev.map((r) => {
@@ -1478,7 +1643,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    [currentUserId, directoryUsers]
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace, currentUserId, directoryUsers]
   );
 
   const getDailyReportsForDate = useCallback(
@@ -1507,14 +1672,21 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     [dailyReports, directoryUsers]
   );
 
-  const addFieldVisit = useCallback((visit: Omit<MeizitoFieldVisit, 'id' | 'createdAt'>) => {
-    const row = normalizeFieldVisit({
-      ...visit,
-      id: newId(),
-      createdAt: new Date().toISOString(),
-    } as MeizitoFieldVisit);
-    setFieldVisits((prev) => [...prev, row]);
-  }, []);
+  const addFieldVisit = useCallback(
+    (visit: Omit<MeizitoFieldVisit, 'id' | 'createdAt'>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateFieldVisit(activeBusinessId, visit).then(() => refreshWorkspace());
+        return;
+      }
+      const row = normalizeFieldVisit({
+        ...visit,
+        id: newId(),
+        createdAt: new Date().toISOString(),
+      } as MeizitoFieldVisit);
+      setFieldVisits((prev) => [...prev, row]);
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const addInternalRequest = useCallback(
     (
@@ -1693,14 +1865,25 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const updateFieldVisit = useCallback(
     (id: string, patch: Partial<Omit<MeizitoFieldVisit, 'id' | 'createdAt'>>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateFieldVisit(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
       setFieldVisits((prev) => prev.map((v) => (v.id === id ? { ...v, ...patch } : v)));
     },
-    []
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const deleteFieldVisit = useCallback((id: string) => {
-    setFieldVisits((prev) => prev.filter((v) => v.id !== id));
-  }, []);
+  const deleteFieldVisit = useCallback(
+    (id: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiDeleteFieldVisit(activeBusinessId, id).then(() => refreshWorkspace());
+        return;
+      }
+      setFieldVisits((prev) => prev.filter((v) => v.id !== id));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const getFieldVisitsForDate = useCallback(
     (dateKey: string) =>
@@ -1722,20 +1905,31 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     [threads, messages]
   );
 
-  const addNoteBoard = useCallback((name: string) => {
-    const id = newId();
-    const boardColors = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff'];
-    setNoteBoards((prev) => {
-      const board: MeizitoNoteBoard = {
-        id,
-        name: name.trim() || 'بورد جدید',
-        color: boardColors[prev.length % boardColors.length],
-        order: prev.length,
-      };
-      return [...prev, board];
-    });
-    setActiveNoteBoardIdState(id);
-  }, []);
+  const addNoteBoard = useCallback(
+    (name: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void (async () => {
+          const { noteBoard } = await apiCreateNoteBoard(activeBusinessId, name);
+          await refreshWorkspace();
+          setActiveNoteBoardIdState(noteBoard.id);
+        })();
+        return;
+      }
+      const id = newId();
+      const boardColors = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff'];
+      setNoteBoards((prev) => {
+        const board: MeizitoNoteBoard = {
+          id,
+          name: name.trim() || 'بورد جدید',
+          color: boardColors[prev.length % boardColors.length],
+          order: prev.length,
+        };
+        return [...prev, board];
+      });
+      setActiveNoteBoardIdState(id);
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const updateNoteBoard = useCallback(
     (id: string, patch: Partial<Pick<MeizitoNoteBoard, 'name' | 'color' | 'order'>>) => {
@@ -1753,6 +1947,16 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       ncAttachments?: import('@/src/types/nextcloud').NcFileRef[]
     ) => {
       const bid = boardId ?? activeNoteBoardId;
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiCreateNote(activeBusinessId, {
+          title,
+          content,
+          color,
+          boardId: bid,
+          ncAttachments,
+        }).then(() => refreshWorkspace());
+        return;
+      }
       setNotes((prev) => [
         ...prev,
         {
@@ -1769,20 +1973,45 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         },
       ]);
     },
-    [activeNoteBoardId]
+    [activeNoteBoardId, useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const updateNote = useCallback((id: string, patch: Partial<MeizitoNote>) => {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
-  }, []);
+  const updateNote = useCallback(
+    (id: string, patch: Partial<MeizitoNote>) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateNote(activeBusinessId, id, patch).then(() => refreshWorkspace());
+        return;
+      }
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, ...patch } : n)));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const toggleNoteStar = useCallback((id: string) => {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, starred: !n.starred } : n)));
-  }, []);
+  const toggleNoteStar = useCallback(
+    (id: string) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        const note = notes.find((n) => n.id === id);
+        if (!note) return;
+        void apiUpdateNote(activeBusinessId, id, { starred: !note.starred }).then(() =>
+          refreshWorkspace()
+        );
+        return;
+      }
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, starred: !n.starred } : n)));
+    },
+    [notes, useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
-  const archiveNote = useCallback((id: string, archived = true) => {
-    setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, archived } : n)));
-  }, []);
+  const archiveNote = useCallback(
+    (id: string, archived = true) => {
+      if (useWorkspaceApi && activeBusinessId) {
+        void apiUpdateNote(activeBusinessId, id, { archived }).then(() => refreshWorkspace());
+        return;
+      }
+      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, archived } : n)));
+    },
+    [useWorkspaceApi, activeBusinessId, refreshWorkspace]
+  );
 
   const getThreadMessagesForDate = useCallback(
     (threadId: string, dateKey: string) => {

@@ -13,7 +13,7 @@ export type MeizitoDataSources = {
 /** v10 — flip each slice to `api` when its menu phase completes. */
 export const MEIZITO_DATA_SOURCES: MeizitoDataSources = {
   teamDirectory: 'api',
-  workspace: 'mock',
+  workspace: 'api',
   requests: 'mock',
   letters: 'mock',
   calendar: 'mock',
