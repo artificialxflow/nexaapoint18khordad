@@ -14,10 +14,11 @@ if (!url) {
   process.exit(1);
 }
 
-const prisma = new PrismaClient({ datasources: { db: { url } } });
+const dbUrl: string = url;
+const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
 
 async function main() {
-  console.log('[db-inspect] target:', url.replace(/:([^:@/]+)@/, ':***@'));
+  console.log('[db-inspect] target:', dbUrl.replace(/:([^:@/]+)@/, ':***@'));
 
   const cols = await prisma.$queryRaw<{ column_name: string }[]>`
     SELECT column_name FROM information_schema.columns
