@@ -19,7 +19,7 @@
 | **تقویم** | `/dashboard/tasks?tab=calendar` | `CalendarPanel` | mock |
 | **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | mock |
 | **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | **DB ✅ فاز ۳** |
-| **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | mock |
+| **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | **DB ✅ فاز ۴** |
 | **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
 | **داشبورد ERP** | `/dashboard/dashboard` | ERP views | mock — **آخر** |
 
@@ -395,19 +395,19 @@ scripts/
 
 ### ۴.۱ Prisma
 
-- [ ] `InternalLetter` · reuse `ApprovalStep`
+- [x] `InternalLetter` · reuse `ApprovalStep`
 
 ### ۴.۲ API
 
-- [ ] `GET/POST .../letters` · filter by box
-- [ ] `POST .../letters/[id]/reply`
-- [ ] `PATCH .../letters/[id]` — box/status/close/reopen
-- [ ] `POST .../letters/[id]/approval`
+- [x] `GET/POST .../letters` · filter by box
+- [x] `POST .../letter-reply`
+- [x] `PATCH .../letter-update` — box/status/close/reopen
+- [x] `POST .../letter-approval`
 
 ### ۴.۳ Wiring
 
-- [ ] `LettersPanel` · badge count در `MeizitoWorkspace`
-- [ ] `CommsHubPanel` (letters)
+- [x] `LettersPanel` · badge count در `MeizitoWorkspace`
+- [x] `CommsHubPanel` (letters)
 
 ### ۴.۴ Nextcloud
 
@@ -415,8 +415,8 @@ scripts/
 
 ### ۴.۵ حذف mock · Logging · Smoke
 
-- [ ] seed letters حذف
-- [ ] `scripts/meizito-smoke-letters.ts` · `npm run test:meizito:letters`
+- [x] seed letters حذف
+- [x] `scripts/meizito-smoke-letters.ts` · `npm run test:meizito:letters`
 
 **✅ DoD فاز ۴:** thread + approval + attachments · mock صفر
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۳ ✅ · فاز ۴ ⬜ (نامه‌ها)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۴ ✅ · فاز ۵ ⬜ (تقویم)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

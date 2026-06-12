@@ -92,6 +92,15 @@ import {
   apiUpdateInternalRequestStatus,
   fetchRequestsSnapshot,
 } from '@/src/lib/meizito/requests/client';
+import {
+  apiCreateLetter,
+  apiLetterApproval,
+  apiReplyToLetter,
+  apiSubmitLetter,
+  apiUpdateLetter,
+  fetchLettersSnapshot,
+} from '@/src/lib/meizito/letters/client';
+import type { LettersSnapshot } from '@/src/lib/meizito/letters/serialize';
 import type { RequestsSnapshot } from '@/src/lib/meizito/requests/serialize';
 
 export { MEIZITO_CURRENT_USER_NAME };
@@ -662,59 +671,6 @@ function seedData() {
   return {
     threads: [threadDirect, threadGroup, threadChannel],
     messages: [msg1, msg2, msg3, msg4],
-    letters: (() => {
-      const threadLet = 'thread-let-1';
-      const t0 = new Date(Date.now() - 2 * 86400000).toISOString();
-      const t1 = new Date(Date.now() - 86400000).toISOString();
-      return [
-        {
-          id: 'let-1',
-          subject: 'درخواست جلسه',
-          body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.',
-          to: ['مدیر فروش'],
-          labels: ['اداری'],
-          category: 'administrative' as const,
-          status: 'open' as const,
-          box: 'inbox' as const,
-          referredTo: ['واحد مالی'],
-          referredFrom: MEIZITO_CURRENT_USER_NAME,
-          threadId: threadLet,
-          attachments: [],
-          createdAt: t0,
-        },
-        {
-          id: 'let-2',
-          subject: 'Re: درخواست جلسه',
-          body: 'با سلام،\nموضوع در دست بررسی است.\n\n---\nنامه قبلی:\nدرخواست جلسه...',
-          to: [MEIZITO_CURRENT_USER_NAME],
-          labels: ['اداری'],
-          category: 'administrative' as const,
-          status: 'open' as const,
-          box: 'inbox' as const,
-          referredTo: [],
-          referredFrom: 'مدیر فروش',
-          replyToLetterId: 'let-1',
-          threadId: threadLet,
-          attachments: [],
-          createdAt: t1,
-        },
-        {
-          id: 'let-3',
-          subject: 'گزارش ماهانه',
-          body: 'پیوست گزارش ارسال شد.',
-          to: ['مدیریت'],
-          labels: ['گزارش', 'مالی'],
-          category: 'financial' as const,
-          status: 'closed' as const,
-          box: 'archive' as const,
-          referredTo: ['مدیریت'],
-          referredFrom: MEIZITO_CURRENT_USER_NAME,
-          threadId: 'thread-let-2',
-          attachments: [{ name: 'report.pdf', size: '۲۴۰ KB' }],
-          createdAt: new Date().toISOString(),
-        },
-      ];
-    })(),
     currentUserId: DEFAULT_USER_ID,
     calendars: defaultCalendarsSeed(),
     calendarEvents: [
@@ -737,6 +693,60 @@ function seedData() {
     activeCalendarId: 'cal-customer',
     activeThreadId: thDirect,
   };
+}
+
+function seedLettersMock(): MeizitoLetter[] {
+  const threadLet = 'thread-let-1';
+  const t0 = new Date(Date.now() - 2 * 86400000).toISOString();
+  const t1 = new Date(Date.now() - 86400000).toISOString();
+  return [
+    {
+      id: 'let-1',
+      subject: 'درخواست جلسه',
+      body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.',
+      to: ['مدیر فروش'],
+      labels: ['اداری'],
+      category: 'administrative' as const,
+      status: 'open' as const,
+      box: 'inbox' as const,
+      referredTo: ['واحد مالی'],
+      referredFrom: MEIZITO_CURRENT_USER_NAME,
+      threadId: threadLet,
+      attachments: [],
+      createdAt: t0,
+    },
+    {
+      id: 'let-2',
+      subject: 'Re: درخواست جلسه',
+      body: 'با سلام،\nموضوع در دست بررسی است.\n\n---\nنامه قبلی:\nدرخواست جلسه...',
+      to: [MEIZITO_CURRENT_USER_NAME],
+      labels: ['اداری'],
+      category: 'administrative' as const,
+      status: 'open' as const,
+      box: 'inbox' as const,
+      referredTo: [],
+      referredFrom: 'مدیر فروش',
+      replyToLetterId: 'let-1',
+      threadId: threadLet,
+      attachments: [],
+      createdAt: t1,
+    },
+    {
+      id: 'let-3',
+      subject: 'گزارش ماهانه',
+      body: 'پیوست گزارش ارسال شد.',
+      to: ['مدیریت'],
+      labels: ['گزارش', 'مالی'],
+      category: 'financial' as const,
+      status: 'closed' as const,
+      box: 'archive' as const,
+      referredTo: ['مدیریت'],
+      referredFrom: MEIZITO_CURRENT_USER_NAME,
+      threadId: 'thread-let-2',
+      attachments: [{ name: 'report.pdf', size: '۲۴۰ KB' }],
+      createdAt: new Date().toISOString(),
+    },
+  ];
 }
 
 function seedRequestsMock(): MeizitoInternalRequest[] {
@@ -925,9 +935,11 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
   const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
+  const lettersSeed = useMemo(() => seedLettersMock(), []);
   const requestsSeed = useMemo(() => seedRequestsMock(), []);
   const workspaceFromApi = dataSources.workspace === 'api';
   const requestsFromApi = dataSources.requests === 'api';
+  const lettersFromApi = dataSources.letters === 'api';
   const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
     workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
   );
@@ -943,7 +955,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const [threads, setThreads] = useState<MeizitoChatThread[]>(() => stored.threads ?? seed.threads);
   const [messages, setMessages] = useState<MeizitoChatMessage[]>(() => stored.messages ?? seed.messages);
   const [letters, setLetters] = useState<MeizitoLetter[]>(() =>
-    (stored.letters ?? seed.letters).map(normalizeLetter)
+    lettersFromApi ? [] : (stored.letters ?? lettersSeed).map(normalizeLetter)
   );
   const [dailyReports, setDailyReports] = useState<MeizitoDailyReport[]>(() =>
     workspaceFromApi
@@ -1064,6 +1076,25 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const useWorkspaceApi = dataSources.workspace === 'api' && !!activeBusinessId;
   const useRequestsApi = dataSources.requests === 'api' && !!activeBusinessId;
+  const useLettersApi = dataSources.letters === 'api' && !!activeBusinessId;
+
+  const applyLettersSnapshot = useCallback((snapshot: LettersSnapshot) => {
+    setLetters(snapshot.letters.map(normalizeLetter));
+  }, []);
+
+  const refreshLetters = useCallback(async () => {
+    if (dataSources.letters !== 'api' || !activeBusinessId) return;
+    try {
+      const snapshot = await fetchLettersSnapshot(activeBusinessId);
+      applyLettersSnapshot(snapshot);
+    } catch {
+      applyLettersSnapshot({ letters: [] });
+    }
+  }, [activeBusinessId, applyLettersSnapshot, dataSources.letters]);
+
+  useEffect(() => {
+    void refreshLetters();
+  }, [refreshLetters]);
 
   const applyRequestsSnapshot = useCallback((snapshot: RequestsSnapshot) => {
     setInternalRequests(snapshot.requests.map(normalizeInternalRequest));
@@ -1091,11 +1122,12 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const persistRequests = !requestsFromApi;
+    const persistLetters = !lettersFromApi;
     if (dataSources.workspace === 'api') {
       const payload: Stored = {
         threads,
         messages,
-        letters,
+        ...(persistLetters ? { letters } : {}),
         ...(persistRequests ? { internalRequests } : {}),
         currentUserId,
         calendars,
@@ -1115,7 +1147,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       projects,
       threads,
       messages,
-      letters,
+      ...(persistLetters ? { letters } : {}),
       dailyReports,
       fieldVisits,
       ...(persistRequests ? { internalRequests } : {}),
@@ -1152,6 +1184,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     activeThreadId,
     dataSources.workspace,
     requestsFromApi,
+    lettersFromApi,
   ]);
 
   const setActiveBoardId = useCallback((id: string) => setActiveBoardIdState(id), []);
@@ -1482,18 +1515,29 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)));
   }, []);
 
-  const addLetter = useCallback((letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => {
-    const id = newId();
-    const full: MeizitoLetter = normalizeLetter({
-      ...letter,
-      id,
-      threadId: letter.threadId || id,
-      createdAt: letter.createdAt || new Date().toISOString(),
-      approvalState: letter.approvalState ?? 'draft',
-    });
-    setLetters((prev) => [...prev, full]);
-    return id;
-  }, []);
+  const addLetter = useCallback(
+    (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => {
+      if (useLettersApi && activeBusinessId) {
+        void (async () => {
+          const { letter: created } = await apiCreateLetter(activeBusinessId, letter);
+          await apiSubmitLetter(activeBusinessId, created.id);
+          await refreshLetters();
+        })();
+        return '';
+      }
+      const id = newId();
+      const full: MeizitoLetter = normalizeLetter({
+        ...letter,
+        id,
+        threadId: letter.threadId || id,
+        createdAt: letter.createdAt || new Date().toISOString(),
+        approvalState: letter.approvalState ?? 'draft',
+      });
+      setLetters((prev) => [...prev, full]);
+      return id;
+    },
+    [useLettersApi, activeBusinessId, refreshLetters]
+  );
 
   const getLetterThread = useCallback(
     (threadId: string) =>
@@ -1508,6 +1552,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       sourceId: string,
       letter: Omit<MeizitoLetter, 'id' | 'replyToLetterId' | 'threadId'>
     ) => {
+      if (useLettersApi && activeBusinessId) {
+        void apiReplyToLetter(activeBusinessId, sourceId, letter).then(() => refreshLetters());
+        return;
+      }
       const source = letters.find((l) => l.id === sourceId);
       if (!source) return;
       const id = newId();
@@ -1521,30 +1569,65 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       });
       setLetters((prev) => [...prev, full]);
     },
-    [letters]
+    [useLettersApi, activeBusinessId, refreshLetters, letters]
   );
 
-  const updateLetterBox = useCallback((id: string, box: MeizitoLetter['box']) => {
-    setLetters((prev) => prev.map((l) => (l.id === id ? { ...l, box } : l)));
-  }, []);
+  const updateLetterBox = useCallback(
+    (id: string, box: MeizitoLetter['box']) => {
+      if (useLettersApi && activeBusinessId) {
+        void apiUpdateLetter(activeBusinessId, id, { box }).then(() => refreshLetters());
+        return;
+      }
+      setLetters((prev) => prev.map((l) => (l.id === id ? { ...l, box } : l)));
+    },
+    [useLettersApi, activeBusinessId, refreshLetters]
+  );
 
-  const closeLetter = useCallback((id: string) => {
-    setLetters((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, status: 'closed' as const, box: 'archive' } : l))
-    );
-  }, []);
+  const closeLetter = useCallback(
+    (id: string) => {
+      if (useLettersApi && activeBusinessId) {
+        void apiUpdateLetter(activeBusinessId, id, { status: 'closed', box: 'archive' }).then(() =>
+          refreshLetters()
+        );
+        return;
+      }
+      setLetters((prev) =>
+        prev.map((l) => (l.id === id ? { ...l, status: 'closed' as const, box: 'archive' } : l))
+      );
+    },
+    [useLettersApi, activeBusinessId, refreshLetters]
+  );
 
-  const reopenLetter = useCallback((id: string) => {
-    setLetters((prev) =>
-      prev.map((l) =>
-        l.id === id ? { ...l, status: 'open' as const, box: l.box === 'archive' ? 'inbox' : l.box } : l
-      )
-    );
-  }, []);
+  const reopenLetter = useCallback(
+    (id: string) => {
+      if (useLettersApi && activeBusinessId) {
+        void (async () => {
+          const current = letters.find((l) => l.id === id);
+          const box = current?.box === 'archive' ? 'inbox' : current?.box;
+          await apiUpdateLetter(activeBusinessId, id, { status: 'open', box });
+          await refreshLetters();
+        })();
+        return;
+      }
+      setLetters((prev) =>
+        prev.map((l) =>
+          l.id === id ? { ...l, status: 'open' as const, box: l.box === 'archive' ? 'inbox' : l.box } : l
+        )
+      );
+    },
+    [useLettersApi, activeBusinessId, refreshLetters, letters]
+  );
 
-  const setLetterCategory = useCallback((id: string, category: MeizitoLetterCategory) => {
-    setLetters((prev) => prev.map((l) => (l.id === id ? { ...l, category } : l)));
-  }, []);
+  const setLetterCategory = useCallback(
+    (id: string, category: MeizitoLetterCategory) => {
+      if (useLettersApi && activeBusinessId) {
+        void apiUpdateLetter(activeBusinessId, id, { category }).then(() => refreshLetters());
+        return;
+      }
+      setLetters((prev) => prev.map((l) => (l.id === id ? { ...l, category } : l)));
+    },
+    [useLettersApi, activeBusinessId, refreshLetters]
+  );
 
   const setCurrentUserId = useCallback((id: string) => {
     if (useMockUserSwitcher) {
@@ -1796,6 +1879,11 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         void apiSubmitInternalRequest(activeBusinessId, id).then(() => refreshRequests());
         return;
       }
+      if (useLettersApi && activeBusinessId && entityType === 'letter') {
+        if (!id) return;
+        void apiSubmitLetter(activeBusinessId, id).then(() => refreshLetters());
+        return;
+      }
       const actor = directoryUsers.find((u) => u.id === currentUserId);
       const actorName = actor?.name ?? MEIZITO_CURRENT_USER_NAME;
       if (entityType === 'letter') {
@@ -1822,7 +1910,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       }
     },
-    [useRequestsApi, activeBusinessId, refreshRequests, currentUserId, directoryUsers]
+    [useRequestsApi, useLettersApi, activeBusinessId, refreshRequests, refreshLetters, currentUserId, directoryUsers]
   );
 
   const recordApprovalAction = useCallback(
@@ -1833,6 +1921,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     ) => {
       if (useRequestsApi && activeBusinessId && entityType === 'request') {
         void apiInternalRequestApproval(activeBusinessId, id, payload).then(() => refreshRequests());
+        return;
+      }
+      if (useLettersApi && activeBusinessId && entityType === 'letter') {
+        void apiLetterApproval(activeBusinessId, id, payload).then(() => refreshLetters());
         return;
       }
       const actor = directoryUsers.find((u) => u.id === currentUserId);
@@ -1879,7 +1971,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       }
     },
-    [useRequestsApi, activeBusinessId, refreshRequests, currentUserId, directoryUsers]
+    [useRequestsApi, useLettersApi, activeBusinessId, refreshRequests, refreshLetters, currentUserId, directoryUsers]
   );
 
   const getPendingApprovalCounts = useCallback(

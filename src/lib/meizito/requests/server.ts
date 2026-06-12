@@ -304,7 +304,7 @@ export async function loadPendingApprovals(businessId: string, userId: string) {
     orderBy: { updatedAt: 'desc' },
   });
   const requests = await Promise.all(rows.map((row) => serializeRequestWithSteps(businessId, row)));
-  return { requests, letters: [] as never[] };
+  return { requests };
 }
 
 function asStringArray(value: unknown): string[] {

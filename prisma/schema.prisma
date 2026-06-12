@@ -232,6 +232,7 @@ model Business {
   dailyReports     DailyReport[]
   fieldVisits      FieldVisit[]
   internalRequests InternalRequest[]
+  internalLetters    InternalLetter[]
 
   @@index([status])
   @@index([createdById])
@@ -511,6 +512,51 @@ model InternalRequest {
   @@index([businessId])
   @@index([businessId, status])
   @@index([authorUserId])
+  @@index([currentAssigneeUserId])
+  @@index([approvalState])
+}
+
+enum InternalLetterStatus {
+  open
+  closed
+}
+
+enum InternalLetterBox {
+  inbox
+  outbox
+  archive
+}
+
+model InternalLetter {
+  id                    String               @id @default(cuid())
+  businessId            String
+  subject               String
+  body                  String               @default("")
+  to                    Json                 @default("[]")
+  labels                Json                 @default("[]")
+  category              String               @default("other")
+  status                InternalLetterStatus @default(open)
+  box                   InternalLetterBox    @default(outbox)
+  templateId            String?
+  referredTo            Json                 @default("[]")
+  referredFrom          String               @default("")
+  authorUserId          String
+  replyToLetterId       String?
+  threadId              String?
+  attachments           Json                 @default("[]")
+  approvalState         MeizitoApprovalState @default(draft)
+  currentAssigneeUserId String?
+  submittedAt           DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, box])
+  @@index([businessId, status])
+  @@index([authorUserId])
+  @@index([threadId])
   @@index([currentAssigneeUserId])
   @@index([approvalState])
 }
