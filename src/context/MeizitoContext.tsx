@@ -60,6 +60,13 @@ import {
   parseLegacyCustomerName,
   totalVisitorCount,
 } from '@/src/lib/meizito/visitHelpers';
+import { useAuthOptional } from '@/src/context/AuthContext';
+import { useBusinessOptional } from '@/src/context/BusinessContext';
+import {
+  MEIZITO_DATA_SOURCES,
+  useMockUserSwitcher as isMockUserSwitcherEnabled,
+  type MeizitoDataSources,
+} from '@/src/lib/meizito/config';
 
 export { MEIZITO_CURRENT_USER_NAME };
 
@@ -867,6 +874,10 @@ export interface MeizitoContextValue {
   fieldVisits: MeizitoFieldVisit[];
   currentUserId: string;
   setCurrentUserId: (id: string) => void;
+  sessionUserId: string | null;
+  activeBusinessId: string | null;
+  dataSources: MeizitoDataSources;
+  useMockUserSwitcher: boolean;
   isCurrentUserManager: boolean;
   canReviewDailyReport: (report: MeizitoDailyReport) => boolean;
   mockUsers: typeof MEIZITO_MOCK_USERS;
@@ -936,6 +947,13 @@ export interface MeizitoContextValue {
 const MeizitoContext = createContext<MeizitoContextValue | null>(null);
 
 export function MeizitoProvider({ children }: { children: React.ReactNode }) {
+  const auth = useAuthOptional();
+  const business = useBusinessOptional();
+  const activeBusinessId = business?.activeBusinessId ?? null;
+  const sessionUserId = auth?.user?.id ?? null;
+  const dataSources = MEIZITO_DATA_SOURCES;
+  const useMockUserSwitcher = isMockUserSwitcherEnabled();
+
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
   const [boards, setBoards] = useState<MeizitoBoard[]>(() => stored.boards ?? seed.boards);
@@ -1925,6 +1943,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       fieldVisits,
       currentUserId,
       setCurrentUserId,
+      sessionUserId,
+      activeBusinessId,
+      dataSources,
+      useMockUserSwitcher,
       isCurrentUserManager,
       canReviewDailyReport: canReviewDailyReportCb,
       mockUsers: MEIZITO_MOCK_USERS,
@@ -2019,6 +2041,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       fieldVisits,
       currentUserId,
       setCurrentUserId,
+      sessionUserId,
+      activeBusinessId,
+      dataSources,
+      useMockUserSwitcher,
       isCurrentUserManager,
       canReviewDailyReportCb,
       addDailyReport,

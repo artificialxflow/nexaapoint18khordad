@@ -3,7 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { ClipboardList, Cloud, Paperclip, Plus, X } from 'lucide-react';
 import { NcFilePickerModal } from '@/src/components/nextcloud/NcFilePickerModal';
-import { NEXA_ROOT } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForMeizitoRequests } from '@/src/lib/nextcloud/paths';
 import { openNcFile } from '@/src/lib/nextcloud/uploadClient';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import type { NcFileRef } from '@/src/types/nextcloud';
@@ -34,7 +34,6 @@ type FilterId =
   | 'closed'
   | 'all';
 
-const REQUEST_NC_PATH = `${NEXA_ROOT}/meizito/requests/`;
 
 export default function RequestsPanel() {
   const {
@@ -46,6 +45,7 @@ export default function RequestsPanel() {
     currentUserId,
     currentUserName,
     mockUsers,
+    activeBusinessId,
   } = useMeizito();
 
   const [filter, setFilter] = useState<FilterId>('open');
@@ -375,7 +375,7 @@ export default function RequestsPanel() {
 
       <NcFilePickerModal
         open={ncPickerOpen}
-        initialPath={REQUEST_NC_PATH}
+        initialPath={resolveNcPathForMeizitoRequests(activeBusinessId)}
         onClose={() => setNcPickerOpen(false)}
         onSelect={addNcAttachment}
       />

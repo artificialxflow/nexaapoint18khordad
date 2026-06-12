@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Plus, Star, GripVertical, Search, Paperclip, Cloud } from 'lucide-react';
 import { NcFilePickerModal } from '@/src/components/nextcloud/NcFilePickerModal';
-import { ncPathForMeizitoCard } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForMeizitoCard } from '@/src/lib/nextcloud/paths';
 import { openNcFile } from '@/src/lib/nextcloud/uploadClient';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import type { MeizitoCard } from '@/src/types/meizito';
@@ -29,6 +29,7 @@ export default function BoardsPanel() {
     toggleCardStar,
     addColumn,
     searchCards,
+    activeBusinessId,
   } = useMeizito();
 
   const [newTaskOpen, setNewTaskOpen] = useState(false);
@@ -541,7 +542,7 @@ export default function BoardsPanel() {
           open={ncPickerOpen}
           onClose={() => setNcPickerOpen(false)}
           onSelect={addNcAttachment}
-          initialPath={ncPathForMeizitoCard(detail.boardId, detail.id)}
+          initialPath={resolveNcPathForMeizitoCard(activeBusinessId, detail.boardId, detail.id)}
         />
       )}
     </div>

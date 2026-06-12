@@ -5,7 +5,7 @@ import { FolderKanban, Plus, Search, X } from 'lucide-react';
 import { useCatalog } from '@/src/context/CatalogContext';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import { NcFolderLinkButton } from '@/src/components/nextcloud/NcFolderLinkButton';
-import { ncPathForProject } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForWorkspaceProject } from '@/src/lib/nextcloud/paths';
 import type { MeizitoProject } from '@/src/types/meizito';
 import type { Person, PersonRole } from '@/src/types/person';
 
@@ -54,7 +54,7 @@ function MemberChips({ names, max = 3 }: { names: string[]; max?: number }) {
 
 export default function ProjectsPanel() {
   const { people } = useCatalog();
-  const { projects, addProject, boards, cards } = useMeizito();
+  const { projects, addProject, boards, cards, activeBusinessId } = useMeizito();
 
   const [name, setName] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -253,7 +253,7 @@ export default function ProjectsPanel() {
               </div>
               <MemberChips names={memberNames} />
               <NcFolderLinkButton
-                folderPath={p.ncFolderPath ?? ncPathForProject(p.id)}
+                folderPath={p.ncFolderPath ?? resolveNcPathForWorkspaceProject(activeBusinessId, p.id)}
                 label="پوشه فایل پروژه"
               />
             </div>

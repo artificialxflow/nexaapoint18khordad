@@ -17,7 +17,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ncPathForMeizitoChat } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForMeizitoChat } from '@/src/lib/nextcloud/paths';
 import { openNcFile, uploadFileToNextcloud } from '@/src/lib/nextcloud/uploadClient';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import type {
@@ -94,6 +94,7 @@ export default function MeizitoChatEmbed({ variant = 'full' }: Props) {
     currentUserId,
     updateChatMessage,
     mockUsers,
+    activeBusinessId,
   } = useMeizito();
 
   const [listTab, setListTab] = useState<MeizitoChatListTab>('all');
@@ -215,7 +216,7 @@ export default function MeizitoChatEmbed({ variant = 'full' }: Props) {
       e.target.value = '';
       return;
     }
-    const path = ncPathForMeizitoChat(activeThreadId);
+    const path = resolveNcPathForMeizitoChat(activeBusinessId, activeThreadId);
     const ref = await uploadFileToNextcloud(f, path);
     const msgType = f.type.startsWith('video/') ? 'video' : 'file';
     if (ref) {

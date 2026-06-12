@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import PersonCombobox from '@/src/components/PersonCombobox';
 import { NcFilePickerModal } from '@/src/components/nextcloud/NcFilePickerModal';
-import { NEXA_ROOT } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForMeizitoLetterDrafts } from '@/src/lib/nextcloud/paths';
 import { openNcFile } from '@/src/lib/nextcloud/uploadClient';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import type { NcFileRef } from '@/src/types/nextcloud';
@@ -40,8 +40,6 @@ const CATEGORY_COLORS: Record<MeizitoLetterCategory, string> = {
 };
 
 type StatusFilter = 'open' | 'all' | 'closed' | 'pending_me';
-
-const LETTER_DRAFT_NC_PATH = `${NEXA_ROOT}/meizito/letters/drafts/`;
 
 const TEMPLATES = [
   { id: 't1', label: 'درخواست جلسه', body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.' },
@@ -109,6 +107,7 @@ export default function LettersPanel() {
     mockUsers,
     submitForApproval,
     recordApprovalAction,
+    activeBusinessId,
   } = useMeizito();
   const [box, setBox] = useState<MeizitoLetter['box']>('inbox');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
@@ -624,7 +623,7 @@ export default function LettersPanel() {
         open={ncPickerOpen}
         onClose={() => setNcPickerOpen(false)}
         onSelect={addNcAttachment}
-        initialPath={LETTER_DRAFT_NC_PATH}
+        initialPath={resolveNcPathForMeizitoLetterDrafts(activeBusinessId)}
       />
     </div>
   );

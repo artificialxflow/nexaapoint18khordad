@@ -75,7 +75,7 @@ export default function MeizitoWorkspace() {
   const reportsSection: MeizitoReportsSection = isMeizitoReportsSection(sectionParam)
     ? sectionParam
     : 'daily';
-  const { mockUsers, currentUserId, setCurrentUserId, letters } = useMeizito();
+  const { mockUsers, currentUserId, setCurrentUserId, letters, useMockUserSwitcher } = useMeizito();
   const [meizitoTab, setMeizitoTab] = useState<MeizitoTabId>('dashboard');
 
   const openLettersCount = useMemo(
@@ -181,7 +181,9 @@ export default function MeizitoWorkspace() {
           <select
             value={currentUserId}
             onChange={(e) => setCurrentUserId(e.target.value)}
-            className="bg-gray-50 border border-nexa-border rounded-xl px-3 py-2 text-xs font-bold min-w-[140px]"
+            disabled={!useMockUserSwitcher}
+            title={useMockUserSwitcher ? undefined : 'پس از اتصال به DB، کاربر از session استفاده می‌شود'}
+            className="bg-gray-50 border border-nexa-border rounded-xl px-3 py-2 text-xs font-bold min-w-[140px] disabled:opacity-60"
           >
             {mockUsers.map((u) => (
               <option key={u.id} value={u.id}>

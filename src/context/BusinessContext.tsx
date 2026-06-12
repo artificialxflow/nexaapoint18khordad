@@ -190,3 +190,7 @@ export function useBusiness() {
   if (!ctx) throw new Error('useBusiness must be used within BusinessProvider');
   return ctx;
 }
+
+export function useBusinessOptional() {
+  return useContext(BusinessContext);
+}

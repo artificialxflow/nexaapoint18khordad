@@ -3,12 +3,11 @@
 import React, { useMemo, useState } from 'react';
 import { Cloud, LayoutGrid, Plus, StickyNote, Trash2, Archive, Paperclip } from 'lucide-react';
 import { NcFilePickerModal } from '@/src/components/nextcloud/NcFilePickerModal';
-import { NEXA_ROOT } from '@/src/lib/nextcloud/paths';
+import { resolveNcPathForMeizitoNotes } from '@/src/lib/nextcloud/paths';
 import { openNcFile } from '@/src/lib/nextcloud/uploadClient';
 import { useMeizito } from '@/src/context/MeizitoContext';
 import type { NcFileRef } from '@/src/types/nextcloud';
 
-const NOTES_NC_PATH = `${NEXA_ROOT}/meizito/notes/`;
 
 const COLORS = ['#fef08a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff', '#f5f5f4'];
 
@@ -30,6 +29,7 @@ export default function NotesPanel() {
     updateNote,
     toggleNoteStar,
     archiveNote,
+    activeBusinessId,
   } = useMeizito();
 
   const [title, setTitle] = useState('');
@@ -368,7 +368,7 @@ export default function NotesPanel() {
         open={ncPickerOpen}
         onClose={() => setNcPickerOpen(false)}
         onSelect={(ref) => setPendingNc((prev) => [...prev, ref])}
-        initialPath={NOTES_NC_PATH}
+        initialPath={resolveNcPathForMeizitoNotes(activeBusinessId)}
       />
     </div>
   );
