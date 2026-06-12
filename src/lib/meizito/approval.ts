@@ -52,9 +52,10 @@ export function applySubmitForApproval(
   item: Partial<MeizitoApprovableFields>,
   authorId: string,
   authorName: string,
-  assigneeId?: string
+  assigneeId?: string,
+  users?: MeizitoMockUser[]
 ): MeizitoApprovableFields {
-  const managerId = assigneeId ?? getDefaultManagerId();
+  const managerId = assigneeId ?? getDefaultManagerId(users);
   const now = new Date().toISOString();
   return {
     approvalState: 'pending',

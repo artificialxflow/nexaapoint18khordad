@@ -177,21 +177,23 @@ export default function MeizitoWorkspace() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="text-[10px] text-gray-500 font-bold">کاربر:</label>
-          <select
-            value={currentUserId}
-            onChange={(e) => setCurrentUserId(e.target.value)}
-            disabled={!useMockUserSwitcher}
-            title={useMockUserSwitcher ? undefined : 'پس از اتصال به DB، کاربر از session استفاده می‌شود'}
-            className="bg-gray-50 border border-nexa-border rounded-xl px-3 py-2 text-xs font-bold min-w-[140px] disabled:opacity-60"
-          >
-            {mockUsers.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}{' '}
-                {u.role === 'senior_manager' ? '(مدیر بالاتر)' : u.role === 'manager' ? '(مدیر)' : ''}
-              </option>
-            ))}
-          </select>
+          {useMockUserSwitcher && (
+            <>
+              <label className="text-[10px] text-gray-500 font-bold">کاربر:</label>
+              <select
+                value={currentUserId}
+                onChange={(e) => setCurrentUserId(e.target.value)}
+                className="bg-gray-50 border border-nexa-border rounded-xl px-3 py-2 text-xs font-bold min-w-[140px]"
+              >
+                {mockUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}{' '}
+                    {u.role === 'senior_manager' ? '(مدیر بالاتر)' : u.role === 'manager' ? '(مدیر)' : ''}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 

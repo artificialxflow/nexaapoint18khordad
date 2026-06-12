@@ -20,7 +20,7 @@
 | **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | mock |
 | **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | mock |
 | **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | mock |
-| **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | `MEIZITO_MOCK_USERS` |
+| **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
 | **داشبورد ERP** | `/dashboard/dashboard` | ERP views | mock — **آخر** |
 
 | بخش | فایل | مشکل |
@@ -244,38 +244,38 @@ scripts/
 
 ### ۱.۱ Prisma
 
-- [ ] `BusinessMemberProfile` کامل — migration `…_meizito_phone_v10`
+- [x] `BusinessMemberProfile` کامل — migration `…_meizito_phone_v10`
 
 ### ۱.۲ API
 
-- [ ] `GET /api/meizito/[businessId]/team-directory?filter=&q=`
-- [ ] `PATCH /api/meizito/[businessId]/members/[userId]/profile` — owner/admin
+- [x] `GET /api/meizito/[businessId]/team-directory?filter=&q=`
+- [x] `PATCH /api/meizito/[businessId]/members/[userId]/profile` — owner/admin
 
 ### ۱.۳ Backend logic
 
-- [ ] `listTeamDirectory` server-side — port از `src/lib/meizito/approval.ts`
-- [ ] `managerUserId` chain · map role به `member|manager|senior_manager`
-- [ ] serialize → شکل `MeizitoMockUser` (UI بدون تغییر)
+- [x] `listTeamDirectory` server-side — port از `src/lib/meizito/approval.ts`
+- [x] `managerUserId` chain · map role به `member|manager|senior_manager`
+- [x] serialize → شکل `MeizitoMockUser` (UI بدون تغییر)
 
 ### ۱.۴ Context wiring
 
-- [ ] `listTeamDirectory` → fetch API
-- [ ] `mockUsers` = cache API (نام متغیر برای سازگاری type)
-- [ ] حذف import `MEIZITO_MOCK_USERS` از runtime
+- [x] `listTeamDirectory` → fetch API
+- [x] `mockUsers` = cache API (نام متغیر برای سازگاری type)
+- [x] حذف import `MEIZITO_MOCK_USERS` از runtime
 
 ### ۱.۵ حذف mock
 
-- [ ] `seedData()` — بدون mock users
+- [x] `seedData()` — بدون mock users
 - [ ] (اختیاری) seed DB profile برای bootstrap user
 
 ### ۱.۶ Logging
 
-- [ ] `log.info('team-directory.list', { businessId, filter, resultCount })`
+- [x] `log.info('team-directory.list', { businessId, filter, resultCount })`
 
 ### ۱.۷ Smoke
 
-- [ ] `scripts/meizito-smoke-phone.ts`
-- [ ] `npm run test:meizito:phone`
+- [x] `scripts/meizito-smoke-phone.ts`
+- [x] `npm run test:meizito:phone`
 
 **✅ DoD فاز ۱:** PhoneDirectoryPanel همان UI · داده DB · reload ماندگار · mock users صفر · smoke سبز
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰ ✅ · فاز ۱–۸ ⬜
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۱ ✅ · فاز ۲ ⬜ (میز کار)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

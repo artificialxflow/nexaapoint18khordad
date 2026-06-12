@@ -10,9 +10,9 @@ export type MeizitoDataSources = {
   chat: MeizitoDataSource;
 };
 
-/** v10 foundation — all mock until each menu phase completes. */
+/** v10 — flip each slice to `api` when its menu phase completes. */
 export const MEIZITO_DATA_SOURCES: MeizitoDataSources = {
-  teamDirectory: 'mock',
+  teamDirectory: 'api',
   workspace: 'mock',
   requests: 'mock',
   letters: 'mock',

@@ -67,6 +67,7 @@ import {
   useMockUserSwitcher as isMockUserSwitcherEnabled,
   type MeizitoDataSources,
 } from '@/src/lib/meizito/config';
+import { meizitoFetch } from '@/src/lib/meizito/client';
 
 export { MEIZITO_CURRENT_USER_NAME };
 
@@ -880,7 +881,7 @@ export interface MeizitoContextValue {
   useMockUserSwitcher: boolean;
   isCurrentUserManager: boolean;
   canReviewDailyReport: (report: MeizitoDailyReport) => boolean;
-  mockUsers: typeof MEIZITO_MOCK_USERS;
+  mockUsers: MeizitoMockUser[];
   addDailyReport: (report: Omit<MeizitoDailyReport, 'id' | 'createdAt' | 'updatedAt'>) => string;
   updateDailyReport: (id: string, patch: Partial<Pick<MeizitoDailyReport, 'title' | 'body' | 'status'>>) => void;
   submitDailyReport: (id: string) => void;
@@ -888,7 +889,7 @@ export interface MeizitoContextValue {
   approveDailyReport: (id: string) => void;
   getDailyReportsForDate: (dateKey: string) => MeizitoDailyReport[];
   getMyDailyReportForDate: (dateKey: string) => MeizitoDailyReport | undefined;
-  getTeamMembersWithoutReportForDate: (dateKey: string) => typeof MEIZITO_MOCK_USERS;
+  getTeamMembersWithoutReportForDate: (dateKey: string) => MeizitoMockUser[];
   addFieldVisit: (visit: Omit<MeizitoFieldVisit, 'id' | 'createdAt'>) => void;
   updateFieldVisit: (id: string, patch: Partial<Omit<MeizitoFieldVisit, 'id' | 'createdAt'>>) => void;
   deleteFieldVisit: (id: string) => void;
@@ -953,6 +954,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const sessionUserId = auth?.user?.id ?? null;
   const dataSources = MEIZITO_DATA_SOURCES;
   const useMockUserSwitcher = isMockUserSwitcherEnabled();
+  const [teamMembers, setTeamMembers] = useState<MeizitoMockUser[]>([]);
 
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
@@ -1002,6 +1004,36 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
   const [activeBoardId, setActiveBoardIdState] = useState(() => stored.activeBoardId ?? seed.activeBoardId);
   const [activeThreadId, setActiveThreadIdState] = useState(() => stored.activeThreadId ?? seed.activeThreadId);
+
+  const directoryUsers = useMemo(
+    () => (dataSources.teamDirectory === 'api' ? teamMembers : [...MEIZITO_MOCK_USERS]),
+    [teamMembers, dataSources.teamDirectory]
+  );
+
+  const refreshTeamDirectory = useCallback(async () => {
+    if (dataSources.teamDirectory !== 'api' || !activeBusinessId) {
+      setTeamMembers([]);
+      return;
+    }
+    try {
+      const data = await meizitoFetch<{ members: MeizitoMockUser[]; allMembers: MeizitoMockUser[] }>(
+        activeBusinessId,
+        '/team-directory'
+      );
+      setTeamMembers(data.allMembers ?? data.members);
+    } catch {
+      setTeamMembers([]);
+    }
+  }, [activeBusinessId, dataSources.teamDirectory]);
+
+  useEffect(() => {
+    void refreshTeamDirectory();
+  }, [refreshTeamDirectory]);
+
+  useEffect(() => {
+    if (dataSources.teamDirectory !== 'api' || !sessionUserId) return;
+    setCurrentUserIdState(sessionUserId);
+  }, [sessionUserId, dataSources.teamDirectory]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1341,23 +1373,25 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setCurrentUserId = useCallback((id: string) => {
-    if (!MEIZITO_MOCK_USERS.some((u) => u.id === id)) return;
+    if (useMockUserSwitcher) {
+      if (!MEIZITO_MOCK_USERS.some((u) => u.id === id)) return;
+    } else if (!directoryUsers.some((u) => u.id === id)) return;
     setCurrentUserIdState(id);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && useMockUserSwitcher) {
       window.localStorage.setItem(MEIZITO_CURRENT_USER_ID_KEY, id);
     }
-  }, []);
+  }, [useMockUserSwitcher, directoryUsers]);
 
   const currentUser = useMemo(
-    () => MEIZITO_MOCK_USERS.find((u) => u.id === currentUserId) ?? MEIZITO_MOCK_USERS[0],
-    [currentUserId]
+    () => directoryUsers.find((u) => u.id === currentUserId) ?? directoryUsers[0],
+    [currentUserId, directoryUsers]
   );
 
   const isCurrentUserManager = isManagerRole(currentUser?.role ?? 'member');
 
   const canReviewDailyReportCb = useCallback(
-    (report: MeizitoDailyReport) => canReviewDailyReport(report, currentUserId, MEIZITO_MOCK_USERS),
-    [currentUserId]
+    (report: MeizitoDailyReport) => canReviewDailyReport(report, currentUserId, directoryUsers),
+    [currentUserId, directoryUsers]
   );
 
   const addDailyReport = useCallback(
@@ -1393,9 +1427,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setDailyReports((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r;
-          if (!canReviewDailyReport(r, currentUserId, MEIZITO_MOCK_USERS)) return r;
-          const roleLabel = getReviewerRoleLabel(r.authorId, currentUserId, MEIZITO_MOCK_USERS);
-          const actor = MEIZITO_MOCK_USERS.find((u) => u.id === currentUserId);
+          if (!canReviewDailyReport(r, currentUserId, directoryUsers)) return r;
+          const roleLabel = getReviewerRoleLabel(r.authorId, currentUserId, directoryUsers);
+          const actor = directoryUsers.find((u) => u.id === currentUserId);
           const entry = {
             id: newFeedbackId(),
             authorId: currentUserId,
@@ -1413,7 +1447,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    [currentUserId]
+    [currentUserId, directoryUsers]
   );
 
   const approveDailyReport = useCallback(
@@ -1422,9 +1456,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setDailyReports((prev) =>
         prev.map((r) => {
           if (r.id !== id) return r;
-          if (!canReviewDailyReport(r, currentUserId, MEIZITO_MOCK_USERS)) return r;
-          const roleLabel = getReviewerRoleLabel(r.authorId, currentUserId, MEIZITO_MOCK_USERS);
-          const actor = MEIZITO_MOCK_USERS.find((u) => u.id === currentUserId);
+          if (!canReviewDailyReport(r, currentUserId, directoryUsers)) return r;
+          const roleLabel = getReviewerRoleLabel(r.authorId, currentUserId, directoryUsers);
+          const actor = directoryUsers.find((u) => u.id === currentUserId);
           const entry = {
             id: newFeedbackId(),
             authorId: currentUserId,
@@ -1444,7 +1478,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    [currentUserId]
+    [currentUserId, directoryUsers]
   );
 
   const getDailyReportsForDate = useCallback(
@@ -1468,9 +1502,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
           .filter((r) => r.date === dateKey && r.status === 'submitted')
           .map((r) => r.authorId)
       );
-      return MEIZITO_MOCK_USERS.filter((u) => u.role === 'member' && !submittedIds.has(u.id));
+      return directoryUsers.filter((u) => u.role === 'member' && !submittedIds.has(u.id));
     },
-    [dailyReports]
+    [dailyReports, directoryUsers]
   );
 
   const addFieldVisit = useCallback((visit: Omit<MeizitoFieldVisit, 'id' | 'createdAt'>) => {
@@ -1492,7 +1526,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       const now = new Date().toISOString();
       const id = newId();
       const authorName =
-        MEIZITO_MOCK_USERS.find((u) => u.id === req.authorId)?.name ?? req.authorName;
+        directoryUsers.find((u) => u.id === req.authorId)?.name ?? req.authorName;
       let item = normalizeInternalRequest({
         ...req,
         id,
@@ -1505,13 +1539,13 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
           primaryAssigneeFromReferrals(req.referredToUserIds) ??
           req.referredToUserId ??
           req.currentAssigneeId;
-        const approval = applySubmitForApproval(item, req.authorId, authorName, assigneeId);
+        const approval = applySubmitForApproval(item, req.authorId, authorName, assigneeId, directoryUsers);
         item = { ...item, ...approval };
       }
       setInternalRequests((prev) => [...prev, item]);
       return id;
     },
-    []
+    [directoryUsers]
   );
 
   const closeInternalRequest = useCallback((id: string) => {
@@ -1529,13 +1563,13 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const submitForApproval = useCallback(
     (entityType: MeizitoApprovableEntityType, id: string) => {
-      const actor = MEIZITO_MOCK_USERS.find((u) => u.id === currentUserId);
+      const actor = directoryUsers.find((u) => u.id === currentUserId);
       const actorName = actor?.name ?? MEIZITO_CURRENT_USER_NAME;
       if (entityType === 'letter') {
         setLetters((prev) =>
           prev.map((l) => {
             if (l.id !== id) return l;
-            const next = applySubmitForApproval(l, currentUserId, actorName);
+            const next = applySubmitForApproval(l, currentUserId, actorName, undefined, directoryUsers);
             return normalizeLetter({ ...l, ...next });
           })
         );
@@ -1547,14 +1581,15 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
               r,
               currentUserId,
               actorName,
-              primaryAssigneeFromReferrals(r.referredToUserIds) ?? r.referredToUserId
+              primaryAssigneeFromReferrals(r.referredToUserIds) ?? r.referredToUserId,
+              directoryUsers
             );
             return normalizeInternalRequest({ ...r, ...next });
           })
         );
       }
     },
-    [currentUserId]
+    [currentUserId, directoryUsers]
   );
 
   const recordApprovalAction = useCallback(
@@ -1563,7 +1598,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       id: string,
       payload: Omit<RecordApprovalPayload, 'actorId' | 'actorName'>
     ) => {
-      const actor = MEIZITO_MOCK_USERS.find((u) => u.id === currentUserId);
+      const actor = directoryUsers.find((u) => u.id === currentUserId);
       const forward = resolveForwardTargets({
         ...payload,
         actorId: currentUserId,
@@ -1571,7 +1606,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         forwardToUserNames:
           payload.forwardToUserNames ??
           payload.forwardToUserIds?.map(
-            (id) => MEIZITO_MOCK_USERS.find((u) => u.id === id)?.name ?? id
+            (id) => directoryUsers.find((u) => u.id === id)?.name ?? id
           ),
       });
       const full: RecordApprovalPayload = {
@@ -1607,7 +1642,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       }
     },
-    [currentUserId]
+    [currentUserId, directoryUsers]
   );
 
   const getPendingApprovalCounts = useCallback(
@@ -1622,14 +1657,14 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const getMockUserById = useCallback(
-    (id: string) => MEIZITO_MOCK_USERS.find((u) => u.id === id),
-    []
+    (id: string) => directoryUsers.find((u) => u.id === id),
+    [directoryUsers]
   );
 
   const listTeamDirectoryCb = useCallback(
     (filter: TeamDirectoryFilter = 'all', search = '') =>
-      listTeamDirectory(MEIZITO_MOCK_USERS, filter, search),
-    []
+      listTeamDirectory(directoryUsers, filter, search),
+    [directoryUsers]
   );
 
   const updateChatMessage = useCallback(
@@ -1949,7 +1984,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       useMockUserSwitcher,
       isCurrentUserManager,
       canReviewDailyReport: canReviewDailyReportCb,
-      mockUsers: MEIZITO_MOCK_USERS,
+      mockUsers: directoryUsers,
       addDailyReport,
       updateDailyReport,
       submitDailyReport,
