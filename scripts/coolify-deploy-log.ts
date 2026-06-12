@@ -1,19 +1,23 @@
 /**
  * Fetch Coolify deployment logs into logs/coolify-latest.log
  *
- * Env (.env.local):
+ * Env (.env or .env.local):
  *   COOLIFY_BASE_URL=http://91.107.177.182:8000
  *   COOLIFY_API_TOKEN=<from Coolify Keys & Tokens>
  *   COOLIFY_APP_UUID=<application uuid from Coolify URL>
  *
  * Usage:
- *   npm run logs:coolify              # latest deployment once
- *   npm run logs:coolify:watch        # poll until finished/failed
- *   npm run logs:coolify -- --status  # print status only
+ *   npm run coolify:logs              # latest deployment once
+ *   npm run coolify:logs:watch        # poll until finished/failed
+ *   npm run coolify:logs -- --status  # print status only
+ *   (aliases: logs:coolify, logs:coolify:watch)
  */
 
-import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { loadProjectEnv } from './load-env';
+
+loadProjectEnv();
 
 const BASE = (process.env.COOLIFY_BASE_URL ?? 'http://91.107.177.182:8000').replace(/\/$/, '');
 const TOKEN = process.env.COOLIFY_API_TOKEN ?? '';
@@ -43,12 +47,12 @@ const statusOnly = args.has('--status');
 
 function requireEnv() {
   if (!TOKEN) {
-    console.error('[coolify-log] Missing COOLIFY_API_TOKEN in .env.local');
+    console.error('[coolify-log] Missing COOLIFY_API_TOKEN in .env or .env.local');
     console.error('  Coolify → Keys & Tokens → Create API token');
     process.exit(1);
   }
   if (!APP_UUID) {
-    console.error('[coolify-log] Missing COOLIFY_APP_UUID in .env.local');
+    console.error('[coolify-log] Missing COOLIFY_APP_UUID in .env or .env.local');
     console.error('  Open your app in Coolify — UUID is in the browser URL');
     process.exit(1);
   }
@@ -83,13 +87,18 @@ function isTerminal(status: string | undefined): boolean {
 
 async function listDeployments(): Promise<Deployment[]> {
   const paths = [
-    `/applications/${APP_UUID}/deployments`,
+    `/deployments/applications/${APP_UUID}?take=10`,
     `/applications/${APP_UUID}/deployments?take=10`,
+    `/applications/${APP_UUID}/deployments`,
   ];
   for (const path of paths) {
     try {
-      const data = await api<Deployment[] | { data?: Deployment[] }>(path);
-      const list = Array.isArray(data) ? data : (data.data ?? []);
+      const data = await api<
+        Deployment[] | { data?: Deployment[]; deployments?: Deployment[]; count?: number }
+      >(path);
+      const list = Array.isArray(data)
+        ? data
+        : (data.deployments ?? data.data ?? []);
       if (list.length > 0) return list;
     } catch {
       /* try next path */
@@ -97,8 +106,9 @@ async function listDeployments(): Promise<Deployment[]> {
   }
 
   try {
-    const running = await api<Deployment[]>('/deployments');
-    return running.filter(
+    const running = await api<Deployment[] | { deployments?: Deployment[] }>('/deployments');
+    const list = Array.isArray(running) ? running : (running.deployments ?? []);
+    return list.filter(
       (d) => d.application_id === APP_UUID || d.application_name?.includes('nexaapoint')
     );
   } catch {
@@ -108,6 +118,33 @@ async function listDeployments(): Promise<Deployment[]> {
 
 async function getDeployment(uuid: string): Promise<Deployment> {
   return api<Deployment>(`/deployments/${uuid}`);
+}
+
+async function fetchApplicationRuntimeLogs(lines = 500): Promise<string | null> {
+  try {
+    const data = await api<{ logs?: string }>(`/applications/${APP_UUID}/logs?lines=${lines}`);
+    const text = data.logs?.trim();
+    return text || null;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveLogBody(deployment: Deployment): Promise<string> {
+  const deployLogs = deployment.logs?.trim();
+  if (deployLogs) return deployLogs;
+
+  const runtime = await fetchApplicationRuntimeLogs();
+  if (runtime) {
+    return [
+      '# Deploy build log was empty in Coolify API.',
+      '# Showing runtime application logs (container stdout) instead:',
+      '',
+      runtime,
+    ].join('\n');
+  }
+
+  return '(no deploy or runtime logs available from Coolify API)';
 }
 
 async function latestDeployment(): Promise<Deployment | null> {
@@ -128,9 +165,10 @@ async function latestDeployment(): Promise<Deployment | null> {
   }
 }
 
-function writeLog(deployment: Deployment) {
+async function writeLog(deployment: Deployment) {
   mkdirSync(LOG_DIR, { recursive: true });
   const id = deploymentId(deployment);
+  const body = await resolveLogBody(deployment);
   const header = [
     `# Coolify deployment log`,
     `# fetched: ${new Date().toISOString()}`,
@@ -142,7 +180,6 @@ function writeLog(deployment: Deployment) {
     '',
   ].join('\n');
 
-  const body = deployment.logs ?? '(no logs in API response)';
   writeFileSync(LOG_FILE, header + body, 'utf8');
   writeFileSync(
     META_FILE,
@@ -188,7 +225,7 @@ async function pollUntilDone(): Promise<Deployment> {
       console.log(full.status ?? 'unknown');
       if (isTerminal(full.status)) return full;
     } else if (isTerminal(full.status)) {
-      writeLog(full);
+      await writeLog(full);
       return full;
     } else {
       console.log(`[coolify-log] still running (${full.status ?? 'in_progress'})…`);
@@ -230,7 +267,7 @@ async function main() {
     return;
   }
 
-  writeLog(full);
+  await writeLog(full);
 
   if (full.status?.toLowerCase().includes('fail')) {
     process.exitCode = 1;
@@ -239,8 +276,9 @@ async function main() {
 
 main().catch((err) => {
   console.error(String(err));
+  mkdirSync(LOG_DIR, { recursive: true });
   appendFileSync(
-    join(process.cwd(), 'logs', 'coolify-error.log'),
+    join(LOG_DIR, 'coolify-error.log'),
     `${new Date().toISOString()} ${String(err)}\n`,
     { flag: 'a' }
   );
