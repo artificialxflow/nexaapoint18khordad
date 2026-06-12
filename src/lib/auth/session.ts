@@ -49,11 +49,13 @@ export async function createSession(
 
 export function buildSessionCookie(token: string, expiresAt: Date): string {
   const { AUTH_SESSION_COOKIE, AUTH_COOKIE_SECURE } = getAuthConfig();
+  const maxAgeSec = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
   const parts = [
     `${AUTH_SESSION_COOKIE}=${token}`,
     'Path=/',
     'HttpOnly',
     'SameSite=Lax',
+    `Max-Age=${maxAgeSec}`,
     `Expires=${expiresAt.toUTCString()}`,
   ];
   if (AUTH_COOKIE_SECURE) parts.push('Secure');
@@ -61,8 +63,16 @@ export function buildSessionCookie(token: string, expiresAt: Date): string {
 }
 
 export function buildClearSessionCookie(): string {
-  const { AUTH_SESSION_COOKIE } = getAuthConfig();
-  return `${AUTH_SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+  const { AUTH_SESSION_COOKIE, AUTH_COOKIE_SECURE } = getAuthConfig();
+  const parts = [
+    `${AUTH_SESSION_COOKIE}=`,
+    'Path=/',
+    'HttpOnly',
+    'SameSite=Lax',
+    'Max-Age=0',
+  ];
+  if (AUTH_COOKIE_SECURE) parts.push('Secure');
+  return parts.join('; ');
 }
 
 export function getSessionTokenFromRequest(req: NextRequest): string | null {

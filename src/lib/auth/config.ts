@@ -14,11 +14,43 @@ const authEnvSchema = z.object({
 
 export type AuthEnv = z.infer<typeof authEnvSchema>;
 
+export class AuthConfigError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthConfigError';
+  }
+}
+
 let cached: AuthEnv | null = null;
+
+function formatConfigIssues(error: z.ZodError): string {
+  return error.issues
+    .map((issue) => {
+      const path = issue.path.join('.') || 'env';
+      return `${path}: ${issue.message}`;
+    })
+    .join('; ');
+}
 
 export function getAuthConfig(): AuthEnv {
   if (cached) return cached;
-  cached = authEnvSchema.parse(process.env);
+
+  const parsed = authEnvSchema.safeParse(process.env);
+  if (!parsed.success) {
+    throw new AuthConfigError(
+      `تنظیمات احراز هویت ناقص است (${formatConfigIssues(parsed.error)}). ` +
+        'AUTH_SESSION_SECRET (حداقل ۳۲ کاراکتر) و AUTH_COOKIE_SECURE=false را در Coolify یا .env.production ست کنید.'
+    );
+  }
+
+  let config = parsed.data;
+
+  // HTTP deployments (sslip.io without TLS): Secure cookies are rejected by browsers.
+  if (config.NEXT_PUBLIC_APP_URL.startsWith('http://')) {
+    config = { ...config, AUTH_COOKIE_SECURE: false };
+  }
+
+  cached = config;
   return cached;
 }
 

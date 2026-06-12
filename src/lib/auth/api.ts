@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { ZodError } from 'zod';
+import { AuthConfigError } from '@/src/lib/auth/config';
 import { createLogger } from '@/src/lib/logger';
 
 const log = createLogger('auth');
@@ -17,6 +19,16 @@ export function jsonError(
 }
 
 export function handleAuthRouteError(err: unknown, context: string): NextResponse {
+  if (err instanceof AuthConfigError) {
+    log.error(`${context} config error`, { error: err.message });
+    return jsonError('CONFIG_ERROR', err.message, 503);
+  }
+
+  if (err instanceof ZodError) {
+    log.error(`${context} validation error`, { error: err.message });
+    return jsonError('CONFIG_ERROR', 'تنظیمات سرور ناقص است. با مدیر سیستم تماس بگیرید.', 503);
+  }
+
   if (err instanceof Error) {
     if (err.message === 'UNAUTHORIZED') {
       return jsonError('UNAUTHORIZED', 'لطفاً وارد شوید.', 401);
