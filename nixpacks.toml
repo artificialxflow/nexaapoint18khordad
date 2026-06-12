@@ -1,4 +1,6 @@
-# Coolify/Nixpacks — ensure devDependencies install during build even when
+# Fallback if Coolify is set to Nixpacks instead of Dockerfile.
+# Prefer Dockerfile in repo root (multi-stage standalone) for deploy.
+# Ensure devDependencies install during build even when
 # NODE_ENV=production is set at build time in Coolify env vars.
 [variables]
 NIXPACKS_NODE_VERSION = "22"
