@@ -16,7 +16,7 @@
 | منو (دسترسی سریع) | Route | Panel / View | Backend |
 |-------------------|-------|--------------|---------|
 | **میز کار** | `/dashboard/tasks` | `MeizitoWorkspace` (چند tab) | **DB ✅ فاز ۲** |
-| **تقویم** | `/dashboard/tasks?tab=calendar` | `CalendarPanel` | mock |
+| **تقویم** | `/dashboard/tasks?tab=calendar` | `CalendarPanel` | **DB ✅ فاز ۵** |
 | **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | mock |
 | **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | **DB ✅ فاز ۳** |
 | **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | **DB ✅ فاز ۴** |
@@ -431,23 +431,23 @@ scripts/
 
 ### ۵.۱ Prisma
 
-- [ ] `MeizitoCalendar`, `CalendarEvent`
+- [x] `MeizitoCalendar`, `CalendarEvent`
 
 ### ۵.۲ API
 
-- [ ] calendars CRUD · events CRUD
-- [ ] `POST .../calendar-events/sync-from-cards`
-- [ ] `PATCH .../calendar-events/[id]/rsvp`
+- [x] calendars CRUD · events CRUD
+- [x] `POST .../calendar-events-sync-from-cards`
+- [x] `PATCH .../calendar-event-rsvp`
 
 ### ۵.۳ Wiring
 
-- [ ] `CalendarPanel` · `CommsHubPanel` (events today)
-- [ ] `FieldVisitModal` → `addCalendarEvent` API
+- [x] `CalendarPanel` · `CommsHubPanel` (events today)
+- [x] `FieldVisitModal` → `addCalendarEvent` API
 
 ### ۵.۴ حذف mock · Smoke
 
-- [ ] seed calendars/events حذف
-- [ ] `scripts/meizito-smoke-calendar.ts` · `npm run test:meizito:calendar`
+- [x] seed calendars/events حذف
+- [x] `scripts/meizito-smoke-calendar.ts` · `npm run test:meizito:calendar`
 
 **✅ DoD فاز ۵:** تقویم + sync due dates · mock صفر
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۴ ✅ · فاز ۵ ⬜ (تقویم)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۵ ✅ · فاز ۶ ⬜ (گفتگوها)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

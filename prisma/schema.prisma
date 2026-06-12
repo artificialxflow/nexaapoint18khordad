@@ -233,6 +233,8 @@ model Business {
   fieldVisits      FieldVisit[]
   internalRequests InternalRequest[]
   internalLetters    InternalLetter[]
+  meizitoCalendars   MeizitoCalendar[]
+  meizitoCalendarEvents MeizitoCalendarEvent[]
 
   @@index([status])
   @@index([createdById])
@@ -559,6 +561,59 @@ model InternalLetter {
   @@index([threadId])
   @@index([currentAssigneeUserId])
   @@index([approvalState])
+}
+
+enum MeizitoCalendarKind {
+  customer_followup
+  service
+  general
+  custom
+}
+
+model MeizitoCalendar {
+  id          String              @id @default(cuid())
+  businessId  String
+  slug        String?
+  name        String
+  color       String
+  kind        MeizitoCalendarKind @default(custom)
+  sharedWith  Json                @default("[]")
+  ownerUserId String
+  ownerName   String
+  visible     Boolean             @default(true)
+  sortOrder   Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  business Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  events   MeizitoCalendarEvent[]
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+}
+
+model MeizitoCalendarEvent {
+  id              String   @id @default(cuid())
+  businessId      String
+  calendarId      String
+  title           String
+  dateKey         String
+  time            String?
+  sourceCardId    String?
+  notes           String?
+  reminderMinutes Int?
+  attendeeIds     Json     @default("[]")
+  rsvp            Json     @default("{}")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  calendar MeizitoCalendar @relation(fields: [calendarId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, calendarId])
+  @@index([businessId, dateKey])
+  @@index([sourceCardId])
 }
 
 model MeizitoApprovalStep {

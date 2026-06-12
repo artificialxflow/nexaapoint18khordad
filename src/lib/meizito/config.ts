@@ -16,7 +16,7 @@ export const MEIZITO_DATA_SOURCES: MeizitoDataSources = {
   workspace: 'api',
   requests: 'api',
   letters: 'api',
-  calendar: 'mock',
+  calendar: 'api',
   chat: 'mock',
 };
 

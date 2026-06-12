@@ -101,6 +101,17 @@ import {
   fetchLettersSnapshot,
 } from '@/src/lib/meizito/letters/client';
 import type { LettersSnapshot } from '@/src/lib/meizito/letters/serialize';
+import {
+  apiCreateCalendar,
+  apiCreateCalendarEvent,
+  apiDeleteCalendarEvent,
+  apiSetCalendarEventRsvp,
+  apiSyncCalendarEventsFromCards,
+  apiUpdateCalendar,
+  apiUpdateCalendarEvent,
+  fetchCalendarSnapshot,
+} from '@/src/lib/meizito/calendar/client';
+import type { CalendarSnapshot } from '@/src/lib/meizito/calendar/serialize';
 import type { RequestsSnapshot } from '@/src/lib/meizito/requests/serialize';
 
 export { MEIZITO_CURRENT_USER_NAME };
@@ -672,6 +683,17 @@ function seedData() {
     threads: [threadDirect, threadGroup, threadChannel],
     messages: [msg1, msg2, msg3, msg4],
     currentUserId: DEFAULT_USER_ID,
+    activeThreadId: thDirect,
+  };
+}
+
+function seedCalendarMock(): {
+  calendars: MeizitoCalendar[];
+  calendarEvents: MeizitoCalendarEvent[];
+  activeCalendarId: string;
+} {
+  const todayKey = dateKeyOffset(0);
+  return {
     calendars: defaultCalendarsSeed(),
     calendarEvents: [
       {
@@ -691,7 +713,6 @@ function seedData() {
       },
     ],
     activeCalendarId: 'cal-customer',
-    activeThreadId: thDirect,
   };
 }
 
@@ -935,11 +956,13 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
   const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
+  const calendarSeed = useMemo(() => seedCalendarMock(), []);
   const lettersSeed = useMemo(() => seedLettersMock(), []);
   const requestsSeed = useMemo(() => seedRequestsMock(), []);
   const workspaceFromApi = dataSources.workspace === 'api';
   const requestsFromApi = dataSources.requests === 'api';
   const lettersFromApi = dataSources.letters === 'api';
+  const calendarFromApi = dataSources.calendar === 'api';
   const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
     workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
   );
@@ -991,13 +1014,17 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       : (stored.activeNoteBoardId ?? workspaceSeed.activeNoteBoardId ?? DEFAULT_NOTE_BOARD_ID)
   );
   const [calendars, setCalendars] = useState<MeizitoCalendar[]>(() =>
-    (stored.calendars ?? seed.calendars ?? defaultCalendarsSeed()).map(normalizeCalendar)
+    calendarFromApi ? [] : (stored.calendars ?? calendarSeed.calendars).map(normalizeCalendar)
   );
   const [calendarEvents, setCalendarEvents] = useState<MeizitoCalendarEvent[]>(() =>
-    (stored.calendarEvents ?? seed.calendarEvents ?? []).map(normalizeCalendarEvent)
+    calendarFromApi
+      ? []
+      : (stored.calendarEvents ?? calendarSeed.calendarEvents).map(normalizeCalendarEvent)
   );
-  const [activeCalendarId, setActiveCalendarIdState] = useState(
-    () => stored.activeCalendarId ?? seed.activeCalendarId ?? 'cal-customer'
+  const [activeCalendarId, setActiveCalendarIdState] = useState(() =>
+    calendarFromApi
+      ? 'cal-customer'
+      : (stored.activeCalendarId ?? calendarSeed.activeCalendarId ?? 'cal-customer')
   );
   const [activeBoardId, setActiveBoardIdState] = useState(() =>
     workspaceFromApi ? '' : (stored.activeBoardId ?? workspaceSeed.activeBoardId)
@@ -1077,6 +1104,31 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const useWorkspaceApi = dataSources.workspace === 'api' && !!activeBusinessId;
   const useRequestsApi = dataSources.requests === 'api' && !!activeBusinessId;
   const useLettersApi = dataSources.letters === 'api' && !!activeBusinessId;
+  const useCalendarApi = dataSources.calendar === 'api' && !!activeBusinessId;
+
+  const applyCalendarSnapshot = useCallback((snapshot: CalendarSnapshot) => {
+    setCalendars(snapshot.calendars.map(normalizeCalendar));
+    setCalendarEvents(snapshot.events.map(normalizeCalendarEvent));
+    setActiveCalendarIdState((prev) =>
+      snapshot.calendars.some((c) => c.id === prev)
+        ? prev
+        : (snapshot.calendars[0]?.id ?? 'cal-customer')
+    );
+  }, []);
+
+  const refreshCalendar = useCallback(async () => {
+    if (dataSources.calendar !== 'api' || !activeBusinessId) return;
+    try {
+      const snapshot = await fetchCalendarSnapshot(activeBusinessId);
+      applyCalendarSnapshot(snapshot);
+    } catch {
+      applyCalendarSnapshot({ calendars: [], events: [] });
+    }
+  }, [activeBusinessId, applyCalendarSnapshot, dataSources.calendar]);
+
+  useEffect(() => {
+    void refreshCalendar();
+  }, [refreshCalendar]);
 
   const applyLettersSnapshot = useCallback((snapshot: LettersSnapshot) => {
     setLetters(snapshot.letters.map(normalizeLetter));
@@ -1123,16 +1175,15 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
     const persistRequests = !requestsFromApi;
     const persistLetters = !lettersFromApi;
+    const persistCalendar = !calendarFromApi;
     if (dataSources.workspace === 'api') {
       const payload: Stored = {
         threads,
         messages,
         ...(persistLetters ? { letters } : {}),
         ...(persistRequests ? { internalRequests } : {}),
+        ...(persistCalendar ? { calendars, calendarEvents, activeCalendarId } : {}),
         currentUserId,
-        calendars,
-        calendarEvents,
-        activeCalendarId,
         activeBoardId,
         activeNoteBoardId,
         activeThreadId,
@@ -1151,13 +1202,11 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       dailyReports,
       fieldVisits,
       ...(persistRequests ? { internalRequests } : {}),
+      ...(persistCalendar ? { calendars, calendarEvents, activeCalendarId } : {}),
       currentUserId,
       notes,
       noteBoards,
       activeNoteBoardId,
-      calendars,
-      calendarEvents,
-      activeCalendarId,
       activeBoardId,
       activeThreadId,
     };
@@ -1185,6 +1234,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     dataSources.workspace,
     requestsFromApi,
     lettersFromApi,
+    calendarFromApi,
   ]);
 
   const setActiveBoardId = useCallback((id: string) => setActiveBoardIdState(id), []);
@@ -2007,6 +2057,12 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const setEventRsvp = useCallback(
     (eventId: string, userId: string, status: 'accepted' | 'declined' | 'pending') => {
+      if (useCalendarApi && activeBusinessId) {
+        void apiSetCalendarEventRsvp(activeBusinessId, eventId, userId, status).then(() =>
+          refreshCalendar()
+        );
+        return;
+      }
       setCalendarEvents((prev) =>
         prev.map((e) => {
           if (e.id !== eventId) return e;
@@ -2017,7 +2073,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         })
       );
     },
-    []
+    [useCalendarApi, activeBusinessId, refreshCalendar]
   );
 
   const updateFieldVisit = useCallback(
@@ -2267,6 +2323,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const syncEventsFromCards = useCallback(() => {
+    if (useCalendarApi && activeBusinessId) {
+      void apiSyncCalendarEventsFromCards(activeBusinessId).then(() => refreshCalendar());
+      return;
+    }
     setCalendarEvents((prev) => {
       const rest = prev.filter(
         (e) => e.calendarId !== MEIZITO_TASKS_CALENDAR_ID || !e.sourceCardId
@@ -2285,41 +2345,80 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         );
       return [...rest, ...synced];
     });
-  }, [cards]);
+  }, [useCalendarApi, activeBusinessId, refreshCalendar, cards]);
 
-  const addCalendar = useCallback((name: string, kind: MeizitoCalendarKind, color: string) => {
-    const id = newId();
-    setCalendars((prev) => [
-      ...prev,
-      {
-        id,
-        name: name.trim() || 'تقویم جدید',
-        color,
-        kind,
-        sharedWith: [],
-        ownerName: MEIZITO_CURRENT_USER_NAME,
-      },
-    ]);
-    setActiveCalendarIdState(id);
-  }, []);
+  const addCalendar = useCallback(
+    (name: string, kind: MeizitoCalendarKind, color: string) => {
+      if (useCalendarApi && activeBusinessId) {
+        void (async () => {
+          const { calendar } = await apiCreateCalendar(activeBusinessId, name, kind, color);
+          await refreshCalendar();
+          setActiveCalendarIdState(calendar.id);
+        })();
+        return;
+      }
+      const id = newId();
+      setCalendars((prev) => [
+        ...prev,
+        {
+          id,
+          name: name.trim() || 'تقویم جدید',
+          color,
+          kind,
+          sharedWith: [],
+          ownerName: MEIZITO_CURRENT_USER_NAME,
+        },
+      ]);
+      setActiveCalendarIdState(id);
+    },
+    [useCalendarApi, activeBusinessId, refreshCalendar]
+  );
 
-  const updateCalendar = useCallback((id: string, patch: Partial<MeizitoCalendar>) => {
-    setCalendars((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  }, []);
+  const updateCalendar = useCallback(
+    (id: string, patch: Partial<MeizitoCalendar>) => {
+      if (useCalendarApi && activeBusinessId) {
+        void apiUpdateCalendar(activeBusinessId, id, patch).then(() => refreshCalendar());
+        return;
+      }
+      setCalendars((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+    },
+    [useCalendarApi, activeBusinessId, refreshCalendar]
+  );
 
-  const addCalendarEvent = useCallback((event: Omit<MeizitoCalendarEvent, 'id'>) => {
-    const id = newId();
-    setCalendarEvents((prev) => [...prev, { ...event, id }]);
-    return id;
-  }, []);
+  const addCalendarEvent = useCallback(
+    (event: Omit<MeizitoCalendarEvent, 'id'>) => {
+      if (useCalendarApi && activeBusinessId) {
+        void apiCreateCalendarEvent(activeBusinessId, event).then(() => refreshCalendar());
+        return '';
+      }
+      const id = newId();
+      setCalendarEvents((prev) => [...prev, { ...event, id }]);
+      return id;
+    },
+    [useCalendarApi, activeBusinessId, refreshCalendar]
+  );
 
-  const updateCalendarEvent = useCallback((id: string, patch: Partial<MeizitoCalendarEvent>) => {
-    setCalendarEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
-  }, []);
+  const updateCalendarEvent = useCallback(
+    (id: string, patch: Partial<MeizitoCalendarEvent>) => {
+      if (useCalendarApi && activeBusinessId) {
+        void apiUpdateCalendarEvent(activeBusinessId, id, patch).then(() => refreshCalendar());
+        return;
+      }
+      setCalendarEvents((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    },
+    [useCalendarApi, activeBusinessId, refreshCalendar]
+  );
 
-  const deleteCalendarEvent = useCallback((id: string) => {
-    setCalendarEvents((prev) => prev.filter((e) => e.id !== id));
-  }, []);
+  const deleteCalendarEvent = useCallback(
+    (id: string) => {
+      if (useCalendarApi && activeBusinessId) {
+        void apiDeleteCalendarEvent(activeBusinessId, id).then(() => refreshCalendar());
+        return;
+      }
+      setCalendarEvents((prev) => prev.filter((e) => e.id !== id));
+    },
+    [useCalendarApi, activeBusinessId, refreshCalendar]
+  );
 
   const value = useMemo<MeizitoContextValue>(
     () => ({

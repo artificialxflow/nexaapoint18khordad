@@ -23,6 +23,7 @@
     "test:meizito:workspace": "tsx scripts/meizito-smoke-workspace.ts",
     "test:meizito:requests": "tsx scripts/meizito-smoke-requests.ts",
     "test:meizito:letters": "tsx scripts/meizito-smoke-letters.ts",
+    "test:meizito:calendar": "tsx scripts/meizito-smoke-calendar.ts",
     "coolify:logs": "tsx scripts/coolify-deploy-log.ts",
     "coolify:logs:watch": "tsx scripts/coolify-deploy-log.ts --watch",
     "logs:coolify": "npm run coolify:logs",
