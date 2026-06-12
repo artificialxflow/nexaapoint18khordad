@@ -17,7 +17,7 @@ export const MEIZITO_DATA_SOURCES: MeizitoDataSources = {
   requests: 'api',
   letters: 'api',
   calendar: 'api',
-  chat: 'mock',
+  chat: 'api',
 };
 
 export function useMockUserSwitcher(): boolean {

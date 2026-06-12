@@ -204,15 +204,20 @@ export default function MeizitoChatEmbed({ variant = 'full' }: Props) {
       return;
     }
     if (f.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = () => {
+      const path = resolveNcPathForMeizitoChat(activeBusinessId, activeThreadId);
+      const ref = await uploadFileToNextcloud(f, path);
+      if (ref) {
         addMessage(activeThreadId, currentUserName, f.name, {
           type: 'image',
           attachmentNames: [f.name],
-          imageDataUrl: typeof reader.result === 'string' ? reader.result : undefined,
+          attachmentRefs: [ref],
         });
-      };
-      reader.readAsDataURL(f);
+      } else {
+        addMessage(activeThreadId, currentUserName, f.name, {
+          type: 'image',
+          attachmentNames: [f.name],
+        });
+      }
       e.target.value = '';
       return;
     }
@@ -257,6 +262,7 @@ export default function MeizitoChatEmbed({ variant = 'full' }: Props) {
     if (!isRecording || !activeThreadId) return;
     setIsRecording(false);
     const sec = Math.max(1, Math.round((Date.now() - recordStartRef.current) / 1000));
+    // TODO(v10): upload voice recording to Nextcloud instead of metadata-only message
     addMessage(activeThreadId, currentUserName, `پیام صوتی (${sec} ثانیه)`, {
       type: 'voice',
       voiceDurationSec: sec,
@@ -274,6 +280,24 @@ export default function MeizitoChatEmbed({ variant = 'full' }: Props) {
         <div className={`flex items-center gap-2 ${isMe ? 'text-white' : 'text-gray-800'}`}>
           <Mic size={16} />
           <span className="text-sm">پیام صوتی — {formatVoiceDuration(m.voiceDurationSec)}</span>
+        </div>
+      );
+    }
+    if (m.type === 'image' && (m.attachmentRefs?.length ?? 0) > 0) {
+      const ref = m.attachmentRefs![0];
+      return (
+        <div className="space-y-1">
+          <button
+            type="button"
+            className={`text-xs flex items-center gap-1 font-bold underline ${
+              isMe ? 'text-white/90' : 'text-nexa-accent'
+            }`}
+            onClick={() => openNcFile(ref)}
+          >
+            <FileText size={12} />
+            {ref.name}
+          </button>
+          {m.body && <p className="text-xs">{m.body}</p>}
         </div>
       );
     }

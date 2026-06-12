@@ -235,6 +235,8 @@ model Business {
   internalLetters    InternalLetter[]
   meizitoCalendars   MeizitoCalendar[]
   meizitoCalendarEvents MeizitoCalendarEvent[]
+  chatThreads        ChatThread[]
+  chatMessages       ChatMessage[]
 
   @@index([status])
   @@index([createdById])
@@ -614,6 +616,62 @@ model MeizitoCalendarEvent {
   @@index([businessId, calendarId])
   @@index([businessId, dateKey])
   @@index([sourceCardId])
+}
+
+enum MeizitoThreadType {
+  direct
+  group
+  channel
+}
+
+enum MeizitoMessageType {
+  text
+  file
+  voice
+  image
+  video
+}
+
+model ChatThread {
+  id               String            @id @default(cuid())
+  businessId       String
+  title            String
+  threadType       MeizitoThreadType @default(direct)
+  participantNames Json              @default("[]")
+  starred          Boolean           @default(false)
+  pinned           Boolean           @default(false)
+  sortOrder        Int               @default(0)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  business Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([businessId])
+  @@index([businessId, threadType])
+}
+
+model ChatMessage {
+  id               String             @id @default(cuid())
+  businessId       String
+  threadId         String
+  authorUserId     String?
+  authorName       String
+  body             String             @default("")
+  type             MeizitoMessageType @default(text)
+  attachmentNames  Json               @default("[]")
+  attachmentRefs   Json               @default("[]")
+  voiceDurationSec Int?
+  editedAt         DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  business Business   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  thread   ChatThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, threadId])
+  @@index([threadId])
 }
 
 model MeizitoApprovalStep {

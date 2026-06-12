@@ -17,7 +17,7 @@
 |-------------------|-------|--------------|---------|
 | **میز کار** | `/dashboard/tasks` | `MeizitoWorkspace` (چند tab) | **DB ✅ فاز ۲** |
 | **تقویم** | `/dashboard/tasks?tab=calendar` | `CalendarPanel` | **DB ✅ فاز ۵** |
-| **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | mock |
+| **گفتگوها** | `/dashboard/chats` | `MeizitoChatEmbed` | **DB ✅ فاز ۶** |
 | **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | **DB ✅ فاز ۳** |
 | **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | **DB ✅ فاز ۴** |
 | **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
@@ -462,26 +462,26 @@ scripts/
 
 ### ۶.۱ Prisma
 
-- [ ] `ChatThread`, `ChatMessage`
+- [x] `ChatThread`, `ChatMessage`
 
 ### ۶.۲ API
 
-- [ ] threads CRUD · messages GET/POST/PATCH
-- [ ] star/pin thread
-- [ ] `createCardFromText` → cards API (فاز ۲)
+- [x] threads CRUD · messages GET/POST/PATCH
+- [x] star/pin thread
+- [x] `createCardFromText` → cards API (فاز ۲)
 
 ### ۶.۳ Nextcloud
 
-- [ ] file/image upload — حذف `imageDataUrl` mock · فقط `attachmentRefs`
-- [ ] voice: upload NC یا defer با TODO صریح
+- [x] file/image upload — `attachmentRefs` (تصویر از NC، بدون `imageDataUrl` در DB)
+- [ ] voice: upload NC — **defer** (TODO در `MeizitoChatEmbed`)
 
 ### ۶.۴ Wiring
 
-- [ ] `ChatsPage` · comms tab redirect
+- [x] `ChatsPage` · comms tab redirect
 
 ### ۶.۵ Smoke
 
-- [ ] `scripts/meizito-smoke-chat.ts` · `npm run test:meizito:chat`
+- [x] `scripts/meizito-smoke-chat.ts` · `npm run test:meizito:chat`
 
 **✅ DoD فاز ۶:** messaging + file via NC · mock صفر
 
@@ -589,6 +589,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۵ ✅ · فاز ۶ ⬜ (گفتگوها)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۶ ✅ · فاز ۷ ⬜ (داشبورد ERP)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

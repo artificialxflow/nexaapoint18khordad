@@ -111,7 +111,15 @@ import {
   apiUpdateCalendarEvent,
   fetchCalendarSnapshot,
 } from '@/src/lib/meizito/calendar/client';
+import {
+  apiCreateChatMessage,
+  apiCreateChatThread,
+  apiUpdateChatMessage,
+  apiUpdateChatThread,
+  fetchChatSnapshot,
+} from '@/src/lib/meizito/chat/client';
 import type { CalendarSnapshot } from '@/src/lib/meizito/calendar/serialize';
+import type { ChatSnapshot } from '@/src/lib/meizito/chat/serialize';
 import type { RequestsSnapshot } from '@/src/lib/meizito/requests/serialize';
 
 export { MEIZITO_CURRENT_USER_NAME };
@@ -610,8 +618,11 @@ function seedWorkspaceMock() {
   };
 }
 
-function seedData() {
-  const todayKey = dateKeyOffset(0);
+function seedChatMock(): {
+  threads: MeizitoChatThread[];
+  messages: MeizitoChatMessage[];
+  activeThreadId: string;
+} {
   const thDirect = 'thread-direct';
   const thGroup = 'thread-group';
   const thChannel = 'thread-channel';
@@ -652,38 +663,45 @@ function seedData() {
     type: 'text',
     attachmentNames: [],
   };
-  const threadDirect: MeizitoChatThread = {
-    id: thDirect,
-    title: 'واحد تولید',
-    threadType: 'direct',
-    participantNames: ['واحد تولید'],
-    starred: false,
-    pinned: false,
-    messageIds: [msg1.id, msg2.id],
-  };
-  const threadGroup: MeizitoChatThread = {
-    id: thGroup,
-    title: 'تیم فروش نکسایی',
-    threadType: 'group',
-    participantNames: ['امیرحسین', 'سارا', 'رضا'],
-    starred: true,
-    pinned: true,
-    messageIds: [msg3.id],
-  };
-  const threadChannel: MeizitoChatThread = {
-    id: thChannel,
-    title: 'اطلاعیه‌های سازمان',
-    threadType: 'channel',
-    participantNames: [],
-    starred: false,
-    pinned: false,
-    messageIds: [msg4.id],
-  };
   return {
-    threads: [threadDirect, threadGroup, threadChannel],
+    threads: [
+      {
+        id: thDirect,
+        title: 'واحد تولید',
+        threadType: 'direct',
+        participantNames: ['واحد تولید'],
+        starred: false,
+        pinned: false,
+        messageIds: [msg1.id, msg2.id],
+      },
+      {
+        id: thGroup,
+        title: 'تیم فروش نکسایی',
+        threadType: 'group',
+        participantNames: ['امیرحسین', 'سارا', 'رضا'],
+        starred: true,
+        pinned: true,
+        messageIds: [msg3.id],
+      },
+      {
+        id: thChannel,
+        title: 'اطلاعیه‌های سازمان',
+        threadType: 'channel',
+        participantNames: [],
+        starred: false,
+        pinned: false,
+        messageIds: [msg4.id],
+      },
+    ],
     messages: [msg1, msg2, msg3, msg4],
-    currentUserId: DEFAULT_USER_ID,
     activeThreadId: thDirect,
+  };
+}
+
+function seedData() {
+  return {
+    currentUserId: DEFAULT_USER_ID,
+    activeThreadId: 'thread-direct',
   };
 }
 
@@ -956,6 +974,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const stored = useMemo(() => readStored(), []);
   const seed = useMemo(() => seedData(), []);
   const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
+  const chatSeed = useMemo(() => seedChatMock(), []);
   const calendarSeed = useMemo(() => seedCalendarMock(), []);
   const lettersSeed = useMemo(() => seedLettersMock(), []);
   const requestsSeed = useMemo(() => seedRequestsMock(), []);
@@ -963,6 +982,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const requestsFromApi = dataSources.requests === 'api';
   const lettersFromApi = dataSources.letters === 'api';
   const calendarFromApi = dataSources.calendar === 'api';
+  const chatFromApi = dataSources.chat === 'api';
   const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
     workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
   );
@@ -975,8 +995,12 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<MeizitoProject[]>(() =>
     workspaceFromApi ? [] : (stored.projects ?? workspaceSeed.projects).map(normalizeProject)
   );
-  const [threads, setThreads] = useState<MeizitoChatThread[]>(() => stored.threads ?? seed.threads);
-  const [messages, setMessages] = useState<MeizitoChatMessage[]>(() => stored.messages ?? seed.messages);
+  const [threads, setThreads] = useState<MeizitoChatThread[]>(() =>
+    chatFromApi ? [] : (stored.threads ?? chatSeed.threads).map(normalizeThread)
+  );
+  const [messages, setMessages] = useState<MeizitoChatMessage[]>(() =>
+    chatFromApi ? [] : (stored.messages ?? chatSeed.messages).map(normalizeMessage)
+  );
   const [letters, setLetters] = useState<MeizitoLetter[]>(() =>
     lettersFromApi ? [] : (stored.letters ?? lettersSeed).map(normalizeLetter)
   );
@@ -1029,7 +1053,9 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const [activeBoardId, setActiveBoardIdState] = useState(() =>
     workspaceFromApi ? '' : (stored.activeBoardId ?? workspaceSeed.activeBoardId)
   );
-  const [activeThreadId, setActiveThreadIdState] = useState(() => stored.activeThreadId ?? seed.activeThreadId);
+  const [activeThreadId, setActiveThreadIdState] = useState(() =>
+    chatFromApi ? '' : (stored.activeThreadId ?? seed.activeThreadId ?? chatSeed.activeThreadId)
+  );
 
   const directoryUsers = useMemo(
     () => (dataSources.teamDirectory === 'api' ? teamMembers : [...MEIZITO_MOCK_USERS]),
@@ -1105,6 +1131,31 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const useRequestsApi = dataSources.requests === 'api' && !!activeBusinessId;
   const useLettersApi = dataSources.letters === 'api' && !!activeBusinessId;
   const useCalendarApi = dataSources.calendar === 'api' && !!activeBusinessId;
+  const useChatApi = dataSources.chat === 'api' && !!activeBusinessId;
+
+  const applyChatSnapshot = useCallback((snapshot: ChatSnapshot) => {
+    setThreads(snapshot.threads.map(normalizeThread));
+    setMessages(snapshot.messages.map(normalizeMessage));
+    setActiveThreadIdState((prev) =>
+      snapshot.threads.some((t) => t.id === prev)
+        ? prev
+        : (snapshot.threads[0]?.id ?? '')
+    );
+  }, []);
+
+  const refreshChat = useCallback(async () => {
+    if (dataSources.chat !== 'api' || !activeBusinessId) return;
+    try {
+      const snapshot = await fetchChatSnapshot(activeBusinessId);
+      applyChatSnapshot(snapshot);
+    } catch {
+      applyChatSnapshot({ threads: [], messages: [] });
+    }
+  }, [activeBusinessId, applyChatSnapshot, dataSources.chat]);
+
+  useEffect(() => {
+    void refreshChat();
+  }, [refreshChat]);
 
   const applyCalendarSnapshot = useCallback((snapshot: CalendarSnapshot) => {
     setCalendars(snapshot.calendars.map(normalizeCalendar));
@@ -1176,10 +1227,10 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     const persistRequests = !requestsFromApi;
     const persistLetters = !lettersFromApi;
     const persistCalendar = !calendarFromApi;
+    const persistChat = !chatFromApi;
     if (dataSources.workspace === 'api') {
       const payload: Stored = {
-        threads,
-        messages,
+        ...(persistChat ? { threads, messages, activeThreadId } : {}),
         ...(persistLetters ? { letters } : {}),
         ...(persistRequests ? { internalRequests } : {}),
         ...(persistCalendar ? { calendars, calendarEvents, activeCalendarId } : {}),
@@ -1196,8 +1247,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       columns,
       cards,
       projects,
-      threads,
-      messages,
+      ...(persistChat ? { threads, messages, activeThreadId } : {}),
       ...(persistLetters ? { letters } : {}),
       dailyReports,
       fieldVisits,
@@ -1235,6 +1285,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     requestsFromApi,
     lettersFromApi,
     calendarFromApi,
+    chatFromApi,
   ]);
 
   const setActiveBoardId = useCallback((id: string) => setActiveBoardIdState(id), []);
@@ -1479,6 +1530,18 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         imageDataUrl?: string;
       }
     ) => {
+      if (useChatApi && activeBusinessId) {
+        void apiCreateChatMessage(activeBusinessId, {
+          threadId,
+          authorName: author,
+          body,
+          type: options?.type,
+          attachmentNames: options?.attachmentNames,
+          attachmentRefs: options?.attachmentRefs,
+          voiceDurationSec: options?.voiceDurationSec,
+        }).then(() => refreshChat());
+        return;
+      }
       const id = newId();
       const msg: MeizitoChatMessage = normalizeMessage({
         id,
@@ -1497,11 +1560,24 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         prev.map((t) => (t.id === threadId ? { ...t, messageIds: [...t.messageIds, id] } : t))
       );
     },
-    []
+    [useChatApi, activeBusinessId, refreshChat]
   );
 
   const addThread = useCallback(
     (title: string, threadType: MeizitoThreadType, participantNames: string[] = []) => {
+      if (useChatApi && activeBusinessId) {
+        void (async () => {
+          const { thread } = await apiCreateChatThread(
+            activeBusinessId,
+            title,
+            threadType,
+            participantNames
+          );
+          await refreshChat();
+          setActiveThreadIdState(thread.id);
+        })();
+        return '';
+      }
       const id = newId();
       const thread: MeizitoChatThread = {
         id,
@@ -1516,7 +1592,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setActiveThreadIdState(id);
       return id;
     },
-    []
+    [useChatApi, activeBusinessId, refreshChat]
   );
 
   const createCardFromText = useCallback(
@@ -1557,13 +1633,35 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
-  const toggleThreadStar = useCallback((id: string) => {
-    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, starred: !t.starred } : t)));
-  }, []);
+  const toggleThreadStar = useCallback(
+    (id: string) => {
+      if (useChatApi && activeBusinessId) {
+        const thread = threads.find((t) => t.id === id);
+        if (!thread) return;
+        void apiUpdateChatThread(activeBusinessId, id, { starred: !thread.starred }).then(() =>
+          refreshChat()
+        );
+        return;
+      }
+      setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, starred: !t.starred } : t)));
+    },
+    [useChatApi, activeBusinessId, refreshChat, threads]
+  );
 
-  const toggleThreadPin = useCallback((id: string) => {
-    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)));
-  }, []);
+  const toggleThreadPin = useCallback(
+    (id: string) => {
+      if (useChatApi && activeBusinessId) {
+        const thread = threads.find((t) => t.id === id);
+        if (!thread) return;
+        void apiUpdateChatThread(activeBusinessId, id, { pinned: !thread.pinned }).then(() =>
+          refreshChat()
+        );
+        return;
+      }
+      setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, pinned: !t.pinned } : t)));
+    },
+    [useChatApi, activeBusinessId, refreshChat, threads]
+  );
 
   const addLetter = useCallback(
     (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => {
@@ -2048,11 +2146,15 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
 
   const updateChatMessage = useCallback(
     (messageId: string, patch: Partial<Pick<MeizitoChatMessage, 'body' | 'editedAt'>>) => {
+      if (useChatApi && activeBusinessId) {
+        void apiUpdateChatMessage(activeBusinessId, messageId, patch).then(() => refreshChat());
+        return;
+      }
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, ...patch } : m))
       );
     },
-    []
+    [useChatApi, activeBusinessId, refreshChat]
   );
 
   const setEventRsvp = useCallback(
