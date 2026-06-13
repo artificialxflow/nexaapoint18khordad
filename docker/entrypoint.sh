@@ -22,7 +22,7 @@ if [ ! -f /app/server.js ]; then
 fi
 
 echo "[entrypoint] prisma migrate deploy..."
-npx prisma migrate deploy
+node /app/node_modules/prisma/build/index.js migrate deploy
 
 echo "[entrypoint] starting Next.js standalone on ${HOSTNAME}:${PORT}..."
 cd /app
