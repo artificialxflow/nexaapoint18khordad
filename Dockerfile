@@ -41,6 +41,9 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
+# Standalone trace may omit Prisma query engine — merge from builder (linux openssl 3).
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=migrate /app/node_modules /prisma-cli/node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
 
