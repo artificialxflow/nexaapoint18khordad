@@ -3,6 +3,8 @@ set -e
 
 PORT="${PORT:-3000}"
 HOSTNAME="${HOSTNAME:-0.0.0.0}"
+PRISMA_CLI="/prisma-cli/node_modules/prisma/build/index.js"
+SCHEMA="/app/prisma/schema.prisma"
 
 echo "[entrypoint] nexaapp starting (NODE_ENV=${NODE_ENV:-unset} PORT=${PORT} HOSTNAME=${HOSTNAME})"
 
@@ -21,8 +23,13 @@ if [ ! -f /app/server.js ]; then
   exit 1
 fi
 
+if [ ! -f "$PRISMA_CLI" ]; then
+  echo "[entrypoint] ERROR: Prisma CLI missing at $PRISMA_CLI" >&2
+  exit 1
+fi
+
 echo "[entrypoint] prisma migrate deploy..."
-node /app/node_modules/prisma/build/index.js migrate deploy
+node "$PRISMA_CLI" migrate deploy --schema="$SCHEMA"
 
 echo "[entrypoint] starting Next.js standalone on ${HOSTNAME}:${PORT}..."
 cd /app

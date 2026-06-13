@@ -1,5 +1,5 @@
 # Multi-stage build for Coolify (Dockerfile build pack).
-# Runtime: docker/entrypoint.sh → migrate → node server.js (standalone).
+# Runtime: docker/entrypoint.sh → migrate (full Prisma CLI) → node server.js (standalone).
 
 FROM node:22-bookworm-slim AS base
 WORKDIR /app
@@ -18,6 +18,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate && npm run build
 
+# Full node_modules for Prisma CLI at runtime (migrate deploy needs transitive deps e.g. effect).
+FROM base AS migrate
+ENV NODE_ENV=development
+ENV NPM_CONFIG_PRODUCTION=false
+COPY package.json package-lock.json ./
+COPY prisma ./prisma
+RUN npm ci --ignore-scripts && npx prisma generate
+
 FROM base AS runner
 ENV NODE_ENV=production
 ENV PORT=3000
@@ -33,9 +41,7 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=migrate /app/node_modules /prisma-cli/node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh \
@@ -43,7 +49,7 @@ RUN chmod +x /entrypoint.sh \
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/entrypoint.sh"]
