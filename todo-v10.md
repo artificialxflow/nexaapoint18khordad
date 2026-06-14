@@ -21,7 +21,7 @@
 | **درخواست‌ها** | `/dashboard/work-requests` | `RequestsPanel` | **DB ✅ فاز ۳** |
 | **نامه‌ها** | `/dashboard/tasks?tab=letters` | `LettersPanel` | **DB ✅ فاز ۴** |
 | **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
-| **داشبورد ERP** | `/dashboard/dashboard` | ERP views | mock — **آخر** |
+| **داشبورد ERP** | `/dashboard/dashboard` | ERP views | **DB ✅ فاز ۷** |
 
 | بخش | فایل | مشکل |
 |-----|------|------|
@@ -492,10 +492,14 @@ scripts/
 **Route:** `/dashboard/dashboard`  
 **هدف:** aggregate از DB tenant-scoped — **نه** Meizito mock
 
-- [ ] بررسی views ERP موجود — چه KPI/mock دارد
-- [ ] `GET /api/dashboard/[businessId]/summary`
-- [ ] wiring views — **بدون redesign**
-- [ ] حذف mock ERP dashboard
+- [x] بررسی views ERP موجود — `Dashboard.tsx`: CatalogContext + hardcoded chart/production
+- [x] `GET /api/dashboard/[businessId]/summary`
+- [x] wiring `Dashboard.tsx` — **بدون redesign** (`useBusiness` + fetch summary)
+- [x] حذف mock ERP dashboard (`useCatalog` حذف از Dashboard)
+
+### ۷.۱ Smoke
+
+- [x] `scripts/meizito-smoke-dashboard.ts` · `npm run test:dashboard`
 
 **✅ DoD فاز ۷:** dashboard از DB · Meizito قبلاً DB (فاز ۱–۶)
 
@@ -589,6 +593,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۶ ✅ · فاز ۷ ⬜ (داشبورد ERP)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۷ ✅ · فاز ۸ ⬜ (QA/Deploy/پاکسازی)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری
