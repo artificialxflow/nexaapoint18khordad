@@ -4,8 +4,7 @@ import { prisma } from '@/src/lib/db/prisma';
 import { handleAuthRouteError, jsonError, jsonOk } from '@/src/lib/auth/api';
 import { hashPassword, verifyPassword } from '@/src/lib/auth/password';
 import { validatePassword } from '@/src/lib/auth/users';
-import { requireSessionUser, destroySessionFromRequest, createSession, buildSessionCookie } from '@/src/lib/auth/session';
-import { appendSetCookie } from '@/src/lib/auth/api';
+import { requireSessionUser, destroySessionFromRequest, createSession, setSessionCookie } from '@/src/lib/auth/session';
 import { createLogger } from '@/src/lib/logger';
 
 const log = createLogger('auth');
@@ -39,11 +38,10 @@ export async function POST(req: NextRequest) {
 
     await destroySessionFromRequest(req);
     const { token, expiresAt } = await createSession(user.id, req);
-    const response = jsonOk({ ok: true });
-    appendSetCookie(response, buildSessionCookie(token, expiresAt));
+    await setSessionCookie(token, expiresAt, req);
 
     log.info('password changed', { userId: user.id });
-    return response;
+    return jsonOk({ ok: true });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return jsonError('VALIDATION_ERROR', 'ورودی نامعتبر است.', 400);

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, LogIn, User } from 'lucide-react';
 import Logo from '@/src/components/Logo';
@@ -9,18 +9,23 @@ import { useAuth } from '@/src/context/AuthContext';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
   const next = searchParams.get('next') || '/businesses';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (loading) return;
+    if (user) router.replace(next);
+  }, [loading, user, next, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setSubmitting(true);
 
     try {
       const res = await fetch('/api/auth/login', {
@@ -41,9 +46,13 @@ export default function LoginPage() {
     } catch {
       setError('خطا در ارتباط با سرور.');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
+
+  if (loading || user) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-sm text-gray-500">در حال بررسی ورود…</div>;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -97,11 +106,11 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={submitting}
             className="w-full flex items-center justify-center gap-2 bg-nexa-accent text-white rounded-2xl py-3 font-bold text-sm hover:opacity-90 disabled:opacity-60 transition-opacity"
           >
             <LogIn size={18} />
-            {loading ? 'در حال ورود…' : 'ورود'}
+            {submitting ? 'در حال ورود…' : 'ورود'}
           </button>
         </form>
 

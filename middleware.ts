@@ -4,47 +4,41 @@ import { createLogger } from '@/src/lib/logger';
 
 const log = createLogger('middleware');
 
-const PUBLIC_PREFIXES = ['/', '/login', '/invite', '/shop', '/blog', '/mobile'];
-const PUBLIC_API_PREFIXES = ['/api/auth/login', '/api/invite/'];
-
-function isPublicPath(pathname: string): boolean {
-  if (pathname.startsWith('/_next') || pathname.startsWith('/favicon')) return true;
-  if (pathname.match(/\.(svg|png|jpg|jpeg|gif|webp|ico)$/)) return true;
-
-  for (const prefix of PUBLIC_API_PREFIXES) {
-    if (pathname.startsWith(prefix)) return true;
-  }
-
-  if (pathname === '/') return true;
-  if (pathname.startsWith('/login')) return true;
-  if (pathname.startsWith('/invite/')) return true;
-  if (pathname.startsWith('/shop')) return true;
-  if (pathname.startsWith('/blog')) return true;
-  if (pathname.startsWith('/mobile')) return true;
-  if (pathname.startsWith('/api/nextcloud')) return true;
-
-  for (const prefix of PUBLIC_PREFIXES) {
-    if (prefix !== '/' && pathname.startsWith(prefix)) return true;
-  }
-
-  return false;
+function sessionCookieName(): string {
+  return process.env.AUTH_SESSION_COOKIE ?? 'nexa_session';
 }
 
-function isProtected(pathname: string): boolean {
-  return pathname.startsWith('/dashboard') || pathname.startsWith('/businesses');
+function hasSessionCookie(req: NextRequest): boolean {
+  return !!req.cookies.get(sessionCookieName())?.value;
+}
+
+function safeNextPath(next: string | null): string {
+  if (!next || !next.startsWith('/') || next.startsWith('//')) return '/businesses';
+  return next;
 }
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (!isProtected(pathname)) {
+  if (pathname.startsWith('/login')) {
+    if (hasSessionCookie(req)) {
+      const target = req.nextUrl.clone();
+      target.pathname = safeNextPath(req.nextUrl.searchParams.get('next'));
+      target.search = '';
+      log.debug('redirect authenticated user away from login', { next: target.pathname });
+      return NextResponse.redirect(target);
+    }
     return NextResponse.next();
   }
 
-  const cookieName = process.env.AUTH_SESSION_COOKIE ?? 'nexa_session';
-  const token = req.cookies.get(cookieName)?.value;
+  const isProtected =
+    pathname.startsWith('/dashboard') || pathname.startsWith('/businesses');
 
-  if (!token) {
+  if (!isProtected) {
+    return NextResponse.next();
+  }
+
+  if (!hasSessionCookie(req)) {
     log.debug('redirect unauthenticated', { pathname });
     const loginUrl = req.nextUrl.clone();
     loginUrl.pathname = '/login';
@@ -56,5 +50,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*', '/businesses/:path*'],
+  matcher: ['/login', '/dashboard/:path*', '/businesses/:path*'],
 };

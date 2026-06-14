@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/src/lib/db/prisma';
-import { appendSetCookie, handleAuthRouteError, jsonError, jsonOk } from '@/src/lib/auth/api';
+import { handleAuthRouteError, jsonError, jsonOk } from '@/src/lib/auth/api';
 import { verifyPassword } from '@/src/lib/auth/password';
 import { serializeAuthUser } from '@/src/lib/auth/rbac';
-import { buildSessionCookie, createSession } from '@/src/lib/auth/session';
+import { createSession, setSessionCookie } from '@/src/lib/auth/session';
 import { findUserByUsername, normalizeUsername } from '@/src/lib/auth/users';
 import { createLogger, maskUsername } from '@/src/lib/logger';
 
@@ -45,8 +45,8 @@ export async function POST(req: NextRequest) {
     });
 
     const { token, expiresAt } = await createSession(user.id, req);
+    await setSessionCookie(token, expiresAt, req);
     const response = jsonOk({ user: serializeAuthUser(user) });
-    appendSetCookie(response, buildSessionCookie(token, expiresAt));
 
     log.info('login success', { userId: user.id, role: user.systemRole.slug });
     return response;

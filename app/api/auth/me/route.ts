@@ -1,15 +1,18 @@
 import { NextRequest } from 'next/server';
 import { handleAuthRouteError, jsonError, jsonOk } from '@/src/lib/auth/api';
 import { serializeAuthUser } from '@/src/lib/auth/rbac';
-import { getSessionUserFromRequest } from '@/src/lib/auth/session';
+import { getSessionFromRequest, setSessionCookie } from '@/src/lib/auth/session';
 
 export async function GET(req: NextRequest) {
   try {
-    const user = await getSessionUserFromRequest(req);
-    if (!user) {
+    const session = await getSessionFromRequest(req);
+    if (!session) {
       return jsonError('UNAUTHORIZED', 'لطفاً وارد شوید.', 401);
     }
-    return jsonOk({ user: serializeAuthUser(user) });
+    if (session.renewed) {
+      await setSessionCookie(session.token, session.expiresAt, req);
+    }
+    return jsonOk({ user: serializeAuthUser(session.user) });
   } catch (err) {
     return handleAuthRouteError(err, 'me');
   }
