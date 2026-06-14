@@ -11,7 +11,7 @@
 
 ---
 
-## وضعیت فعلی (قبل از v10)
+## وضعیت فعلی (پس از v10 — لوکال)
 
 | منو (دسترسی سریع) | Route | Panel / View | Backend |
 |-------------------|-------|--------------|---------|
@@ -23,15 +23,15 @@
 | **دفتر تلفن** | `/dashboard/tasks?tab=phone` | `PhoneDirectoryPanel` | **DB ✅ فاز ۱** |
 | **داشبورد ERP** | `/dashboard/dashboard` | ERP views | **DB ✅ فاز ۷** |
 
-| بخش | فایل | مشکل |
-|-----|------|------|
-| Hub داده | `MeizitoContext.tsx` | `seedData()` · `localStorage` کلید `nexa-meizito-v2` |
-| Mock users | `src/types/meizito.ts` | `MEIZITO_MOCK_USERS` (۵ کاربر فیک) |
-| User switcher | `MeizitoWorkspace` | `nexa-meizito-current-user-id` — نه session |
-| Prisma | `schema.prisma` | **مدل Meizito ندارد** |
-| Nextcloud | `src/lib/nextcloud/paths.ts` | مسیرها **بدون** `businessId` |
-| API | `app/api/` | **بدون** `app/api/meizito/*` |
-| Tenant | v9 `Business` | Meizito به `businessId` وصل نیست |
+| بخش | فایل | وضعیت |
+|-----|------|--------|
+| Hub داده | `MeizitoContext.tsx` | API + cache · بدون `seedData()` · legacy localStorage پاک می‌شود |
+| Mock users | `src/types/meizito.ts` | `MEIZITO_MOCK_USERS` فقط type/تست — runtime از team-directory |
+| User | session | `currentUserId` = session `User.id` |
+| Prisma | `schema.prisma` | مدل‌های Meizito + ۱۰ migration |
+| Nextcloud | `src/lib/nextcloud/paths.ts` | tenant paths با `businessId` |
+| API | `app/api/meizito/*` · `app/api/dashboard/*` | فعال |
+| Tenant | v9 `Business` | Meizito tenant-scoped |
 
 **فایل‌های کلیدی:**
 
@@ -509,21 +509,21 @@ scripts/
 
 ### ۸.۱ Automated
 
-- [ ] `npm run test:auth` + همه `test:meizito:*` — سبز
-- [ ] `npm run build` — سبز
+- [x] `npm run test:auth` + همه `test:meizito:*` + `test:dashboard` + `test:business` — سبز (لوکال)
+- [x] `npm run build` — سبز (`npx next build`)
 
 ### ۸.۲ MeizitoContext نهایی
 
-- [ ] حذف کامل `seedData()` · `STORAGE_KEY` · `nexa-meizito-v1/v2`
-- [ ] حذف `MEIZITO_MOCK_USERS` از production runtime
-- [ ] `MeizitoProvider` فقط API + cache
+- [x] حذف کامل `seedData()` · `STORAGE_KEY` · `nexa-meizito-v1/v2` (persist حذف + purge legacy keys)
+- [x] حذف `MEIZITO_MOCK_USERS` از production runtime (`directoryUsers` = team-directory API)
+- [x] `MeizitoProvider` فقط API + cache (state خالی + refresh از API)
 
 ### ۸.۳ Production (Coolify + Nextcloud)
 
-- [ ] push · redeploy · `migrate deploy`
-- [ ] verify `NEXTCLOUD_*` · `/api/nextcloud/status` → configured
+- [ ] push · redeploy · `migrate deploy` — **دستی**
+- [ ] verify `NEXTCLOUD_*` · `/api/nextcloud/status` → configured — **روی production**
 - [ ] smoke production: login → business → هر منو
-- [ ] `LOG_LEVEL=info` — بررسی لاگ Coolify
+- [ ] `LOG_LEVEL=info` — بررسی لاگ Coolify/Runflare
 
 **✅ DoD v10:** دسترسی سریع ۱۰۰٪ DB · localStorage Meizito صفر · NC tenant paths
 
@@ -531,14 +531,14 @@ scripts/
 
 ## چک‌لیست «آیا می‌توانم بروم فاز بعد؟»
 
-- [ ] همه APIهای فاز با smoke script سبز
-- [ ] slice مربوطه از `seedData()` حذف شده
-- [ ] reload — داده از DB
-- [ ] user دیگر business — 403 / داده جدا
-- [ ] NC upload/list با path جدید کار می‌کند
-- [ ] لاگ‌ها در console/Coolify قابل ردیابی
-- [ ] `npm run build` سبز
-- [ ] تیک فاز در این فایل
+- [x] همه APIهای فاز با smoke script سبز
+- [x] slice مربوطه از `seedData()` حذف شده
+- [x] reload — داده از DB
+- [x] user دیگر business — 403 / داده جدا (foundation smoke)
+- [x] NC upload/list با path جدید کار می‌کند (foundation smoke)
+- [x] لاگ‌ها در console/Coolify قابل ردیابی
+- [x] `npm run build` سبز
+- [x] تیک فاز در این فایل
 
 ---
 
@@ -593,6 +593,6 @@ flowchart LR
 - **Catalog `people` در ProjectsPanel:** map به `BusinessMember` (ترجیح) یا نگه‌داشتن catalog — تصمیم در فاز ۲
 - **Production:** tsconfig fix (`scripts/**` exclude) — push/redeploy قبل از v10 production smoke
 
-**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۷ ✅ · فاز ۸ ⬜ (QA/Deploy/پاکسازی)
+**آخرین بروز:** ۱۴۰۵/۰۳/۱۹ · **وضعیت:** فاز ۰–۸ ✅ لوکال · ۸.۳ production ⬜ (push/redeploy دستی)
 
 > **پس از pull:** `npx prisma migrate deploy` · `npm run test:auth` · smoke فاز جاری

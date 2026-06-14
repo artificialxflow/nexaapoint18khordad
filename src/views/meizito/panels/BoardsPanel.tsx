@@ -215,7 +215,7 @@ export default function BoardsPanel() {
         </p>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-2 min-h-[420px] no-scrollbar">
+      <div className="min-w-0 -mx-2 px-2 flex gap-4 overflow-x-auto pb-2 min-h-[420px] custom-scrollbar">
         {boardCols.map((col) => (
           <div
             key={col.id}

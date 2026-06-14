@@ -124,7 +124,7 @@ export default function DashboardLayout() {
       <main className="flex-1 transition-all duration-300 pr-0 md:pr-72 pb-20 md:pb-0 min-w-0">
         <Header onMenuOpen={() => setIsMobileMenuOpen(true)} />
         
-        <div className="p-4 md:p-8 max-w-[1600px] mx-auto overflow-hidden">
+        <div className="p-4 md:p-8 max-w-[1600px] mx-auto min-w-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={currentView}

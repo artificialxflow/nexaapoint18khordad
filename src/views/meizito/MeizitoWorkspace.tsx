@@ -205,7 +205,7 @@ export default function MeizitoWorkspace() {
         {MEIZITO_MOBILE_NAV_TABS.map(renderTabButton)}
       </div>
 
-      <div className="nexa-card p-6 md:p-8 min-h-[520px]">
+      <div className="nexa-card p-6 md:p-8 min-h-[520px] min-w-0 overflow-x-auto">
         <AnimatePresence mode="wait">
           <motion.div
             key={meizitoTab}

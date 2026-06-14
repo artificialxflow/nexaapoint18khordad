@@ -33,8 +33,6 @@ import type {
 } from '@/src/types/meizito';
 import {
   MEIZITO_CURRENT_USER_NAME,
-  MEIZITO_CURRENT_USER_ID_KEY,
-  MEIZITO_MOCK_USERS,
   MEIZITO_TASKS_CALENDAR_ID,
 } from '@/src/types/meizito';
 import {
@@ -129,32 +127,12 @@ function newId() {
   return String(Date.now());
 }
 
-const STORAGE_KEY = 'nexa-meizito-v2';
-const STORAGE_KEY_LEGACY = 'nexa-meizito-v1';
-
-const DEFAULT_USER_ID = MEIZITO_MOCK_USERS[0]?.id ?? 'user-manager';
-
-type Stored = Partial<{
-  boards: MeizitoBoard[];
-  columns: MeizitoColumn[];
-  cards: MeizitoCard[];
-  projects: MeizitoProject[];
-  threads: MeizitoChatThread[];
-  messages: MeizitoChatMessage[];
-  letters: MeizitoLetter[];
-  dailyReports: MeizitoDailyReport[];
-  fieldVisits: MeizitoFieldVisit[];
-  internalRequests: MeizitoInternalRequest[];
-  currentUserId: string;
-  notes: MeizitoNote[];
-  noteBoards: MeizitoNoteBoard[];
-  activeNoteBoardId: string;
-  calendars: MeizitoCalendar[];
-  calendarEvents: MeizitoCalendarEvent[];
-  activeCalendarId: string;
-  activeBoardId: string;
-  activeThreadId: string;
-}>;
+const DEFAULT_NOTE_BOARD_ID = 'note-board-general';
+const LEGACY_MEIZITO_STORAGE_KEYS = [
+  'nexa-meizito-v2',
+  'nexa-meizito-v1',
+  'nexa-meizito-current-user-id',
+] as const;
 
 function inferLetterCategory(labels: string[]): MeizitoLetterCategory {
   const joined = labels.join(' ').toLowerCase();
@@ -164,8 +142,6 @@ function inferLetterCategory(labels: string[]): MeizitoLetterCategory {
   if (/عملیات|ops/i.test(joined)) return 'operations';
   return 'other';
 }
-
-const DEFAULT_NOTE_BOARD_ID = 'note-board-general';
 
 function normalizeCalendar(c: MeizitoCalendar): MeizitoCalendar {
   return {
@@ -183,35 +159,6 @@ function normalizeCalendarEvent(e: MeizitoCalendarEvent): MeizitoCalendarEvent {
     attendeeIds: e.attendeeIds ?? [],
     rsvp: e.rsvp ?? {},
   };
-}
-
-function defaultCalendarsSeed(): MeizitoCalendar[] {
-  return [
-    {
-      id: MEIZITO_TASKS_CALENDAR_ID,
-      name: 'وظایف میز کار',
-      color: '#6366f1',
-      kind: 'general',
-      sharedWith: [],
-      ownerName: MEIZITO_CURRENT_USER_NAME,
-    },
-    {
-      id: 'cal-customer',
-      name: 'پیگیری مشتری',
-      color: '#f59e0b',
-      kind: 'customer_followup',
-      sharedWith: ['1', '3'],
-      ownerName: MEIZITO_CURRENT_USER_NAME,
-    },
-    {
-      id: 'cal-service',
-      name: 'خدمت‌رسانی',
-      color: '#10b981',
-      kind: 'service',
-      sharedWith: ['3'],
-      ownerName: MEIZITO_CURRENT_USER_NAME,
-    },
-  ];
 }
 
 function normalizeMessage(m: MeizitoChatMessage): MeizitoChatMessage {
@@ -298,540 +245,6 @@ function normalizeLetter(l: MeizitoLetter): MeizitoLetter {
     attachments: l.attachments ?? [],
     createdAt: l.createdAt ?? new Date().toISOString(),
   };
-}
-
-function readCurrentUserIdFromBrowser(): string {
-  if (typeof window === 'undefined') return DEFAULT_USER_ID;
-  const id = window.localStorage.getItem(MEIZITO_CURRENT_USER_ID_KEY);
-  if (id && MEIZITO_MOCK_USERS.some((u) => u.id === id)) return id;
-  return DEFAULT_USER_ID;
-}
-
-function readStored(): Stored {
-  if (typeof window === 'undefined') return {};
-  try {
-    let raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) raw = window.localStorage.getItem(STORAGE_KEY_LEGACY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Stored;
-    if (parsed.messages) parsed.messages = parsed.messages.map(normalizeMessage);
-    if (parsed.threads) parsed.threads = parsed.threads.map(normalizeThread);
-    if (parsed.letters) parsed.letters = parsed.letters.map(normalizeLetter);
-    if (parsed.fieldVisits) parsed.fieldVisits = parsed.fieldVisits.map(normalizeFieldVisit);
-    if (parsed.internalRequests) {
-      parsed.internalRequests = parsed.internalRequests.map(normalizeInternalRequest);
-    }
-    if (parsed.dailyReports) {
-      parsed.dailyReports = parsed.dailyReports.map(normalizeDailyReport);
-    }
-    if (!parsed.noteBoards?.length) {
-      parsed.noteBoards = [
-        { id: DEFAULT_NOTE_BOARD_ID, name: 'عمومی', color: '#fef08a', order: 0 },
-        { id: 'note-board-work', name: 'کاری', color: '#bbf7d0', order: 1 },
-      ];
-    }
-    if (!parsed.activeNoteBoardId) {
-      parsed.activeNoteBoardId = parsed.noteBoards[0]?.id ?? DEFAULT_NOTE_BOARD_ID;
-    }
-    const defaultBoardId =
-      parsed.noteBoards?.[0]?.id ?? parsed.noteBoards?.find((b) => b.order === 0)?.id ?? DEFAULT_NOTE_BOARD_ID;
-    if (parsed.notes) parsed.notes = parsed.notes.map((n) => normalizeNote(n, defaultBoardId));
-    if (parsed.projects) parsed.projects = parsed.projects.map(normalizeProject);
-    if (!parsed.calendars?.length) {
-      parsed.calendars = defaultCalendarsSeed();
-    } else {
-      parsed.calendars = parsed.calendars.map(normalizeCalendar);
-    }
-    if (!parsed.activeCalendarId) {
-      parsed.activeCalendarId = parsed.calendars[0]?.id ?? 'cal-customer';
-    }
-    if (parsed.calendarEvents) {
-      parsed.calendarEvents = parsed.calendarEvents.map(normalizeCalendarEvent);
-    }
-    if (!parsed.currentUserId) {
-      parsed.currentUserId = readCurrentUserIdFromBrowser();
-    }
-    return parsed;
-  } catch {
-    return {};
-  }
-}
-
-function dateKeyOffset(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-
-function seedWorkspaceMock() {
-  const bId = 'board-1';
-  const c1 = 'col-todo';
-  const c2 = 'col-doing';
-  const c3 = 'col-done';
-  const todayKey = dateKeyOffset(0);
-  const yesterdayKey = dateKeyOffset(-1);
-  const overdueKey = dateKeyOffset(-5);
-  const labels = [
-    { id: 'l1', name: 'مهم', color: '#ef4444' },
-    { id: 'l2', name: 'نرم‌افزار', color: '#6366f1' },
-  ];
-  const card1: MeizitoCard = {
-    id: 'card-1',
-    boardId: bId,
-    columnId: c1,
-    title: 'هماهنگی جلسه تولید',
-    description: '',
-    labelIds: ['l1'],
-    category: 'جلسات',
-    assignee: MEIZITO_CURRENT_USER_NAME,
-    checklist: [
-      { id: newId(), title: 'باز کردن میز کار', done: true },
-      { id: newId(), title: 'دعوت پرسنل', done: false },
-    ],
-    attachments: [],
-    dueDate: todayKey,
-    dueTime: '10:00',
-    recurrence: 'none',
-    starred: false,
-  };
-  const card2: MeizitoCard = {
-    id: 'card-2',
-    boardId: bId,
-    columnId: c2,
-    title: 'پیگیری فاکتور نمونه',
-    description: '',
-    labelIds: ['l2'],
-    category: 'مالی',
-    assignee: 'سارا',
-    checklist: [],
-    attachments: [{ id: newId(), name: 'فاکتور.pdf', size: '۱۲۰ KB' }],
-    dueDate: todayKey,
-    dueTime: '',
-    recurrence: 'weekly',
-    starred: true,
-  };
-  const card3: MeizitoCard = {
-    id: 'card-3',
-    boardId: bId,
-    columnId: c1,
-    title: 'تماس با تأمین‌کننده',
-    description: '',
-    labelIds: [],
-    category: 'تدارکات',
-    assignee: 'رضا',
-    checklist: [],
-    attachments: [],
-    dueDate: yesterdayKey,
-    dueTime: '',
-    recurrence: 'none',
-    starred: false,
-  };
-  const card4: MeizitoCard = {
-    id: 'card-4',
-    boardId: bId,
-    columnId: c2,
-    title: 'بروزرسانی لیست قیمت',
-    description: '',
-    labelIds: ['l2'],
-    category: 'فروش',
-    assignee: 'سارا',
-    checklist: [],
-    attachments: [],
-    dueDate: overdueKey,
-    dueTime: '',
-    recurrence: 'none',
-    starred: false,
-  };
-  const board: MeizitoBoard = {
-    id: bId,
-    name: 'میز کار عمومی',
-    memberNames: ['امیرحسین', 'سارا', 'رضا'],
-    columnIds: [c1, c2, c3],
-    labelPalette: labels,
-  };
-  const columns: MeizitoColumn[] = [
-    { id: c1, boardId: bId, title: 'برای انجام', order: 0, cardIds: [card1.id, card3.id] },
-    { id: c2, boardId: bId, title: 'در حال انجام', order: 1, cardIds: [card2.id, card4.id] },
-    { id: c3, boardId: bId, title: 'انجام شده', order: 2, cardIds: [] },
-  ];
-  return {
-    boards: [board],
-    columns,
-    cards: [card1, card2, card3, card4],
-    projects: [
-      {
-        id: 'proj-1',
-        name: 'پروژه نمونه',
-        memberIds: ['1', '3'],
-        boardId: bId,
-        ncFolderPath: '/Nexa/projects/proj-1/',
-      },
-    ],
-    dailyReports: (() => {
-      const now = new Date().toISOString();
-      return [
-        {
-          id: 'dr-1',
-          authorId: 'user-sara',
-          authorName: 'سارا',
-          date: todayKey,
-          title: 'گزارش فروش روز',
-          body: '۳ تماس پیگیری و ۱ پیش‌فاکتور صادر شد.',
-          status: 'submitted' as const,
-          feedbackEntries: [
-            {
-              id: 'fb-seed-1',
-              authorId: 'user-manager',
-              authorName: 'امیرحسین',
-              roleLabel: 'مدیر مستقیم',
-              text: 'عالی، فردا پیگیری مشتری VIP را اولویت بده.',
-              kind: 'feedback' as const,
-              at: now,
-            },
-          ],
-          createdAt: now,
-          updatedAt: now,
-        },
-        {
-          id: 'dr-2',
-          authorId: 'user-reza',
-          authorName: 'رضا',
-          date: todayKey,
-          title: 'گزارش تولید',
-          body: 'خط تولید بدون توقف.',
-          status: 'submitted' as const,
-          createdAt: now,
-          updatedAt: now,
-        },
-      ];
-    })(),
-    fieldVisits: (() => {
-      const now = new Date().toISOString();
-      return [
-        {
-          id: 'fv-1',
-          date: todayKey,
-          timeFrom: '10:00',
-          timeTo: '10:45',
-          customerName: 'خانم علوی',
-          visitorGender: 'female' as const,
-          visitorTitle: 'خانم',
-          visitorFirstName: 'علوی',
-          visitorLastName: '',
-          customerMobile: '09121234567',
-          hasDesigner: true,
-          designerName: 'مهندس سمیعی',
-          designerMobile: '09129876543',
-          visitedBy: 'مهندس سمیعی',
-          durationMinutes: 45,
-          maleCompanionCount: 0,
-          femaleCompanionCount: 1,
-          visitorCount: 2,
-          result: 'positive' as const,
-          likedItems: 'سرویس خواب مدرن، کمد دیواری',
-          customerPriorities: 'تحویل سریع و گارانتی',
-          priorityTags: ['delivery', 'warranty', 'price'],
-          purchaseProbability: 'high' as const,
-          interests: 'مینیمال، چوب روشن',
-          notes: 'علاقه به سرویس خواب',
-          description:
-            'از مجموعه بازدید کردند. مبل انجل و غذاخوری را پسندیدند. ان‌شاءالله فردا نهایی می‌شود.',
-          customerTypeId: 'new',
-          acquaintanceSourceId: 'instagram',
-          contactMethodId: 'showroom',
-          salesConsultantName: 'رضایی',
-          followUpActions: ['تماس فردا صبح', 'ارسال پیش‌فاکتور'],
-          authorId: 'user-sara',
-          authorName: 'سارا',
-          createdAt: now,
-        },
-        {
-          id: 'fv-2',
-          date: todayKey,
-          timeFrom: '09:00',
-          timeTo: '09:20',
-          customerName: 'آقای تهرانی',
-          visitorGender: 'male' as const,
-          visitorTitle: 'آقای',
-          visitorFirstName: 'تهرانی',
-          visitorLastName: '',
-          designerName: '—',
-          visitedBy: MEIZITO_CURRENT_USER_NAME,
-          durationMinutes: 20,
-          visitorCount: 1,
-          result: 'neutral' as const,
-          purchaseProbability: 'medium' as const,
-          likedItems: 'میز ناهارخوری',
-          authorId: 'user-manager',
-          authorName: MEIZITO_CURRENT_USER_NAME,
-          createdAt: now,
-        },
-        {
-          id: 'fv-3',
-          date: dateKeyOffset(-1),
-          timeFrom: '15:00',
-          timeTo: '16:00',
-          customerName: 'شرکت نوسازان',
-          designerName: 'مریم',
-          visitedBy: 'مریم',
-          durationMinutes: 60,
-          visitorCount: 4,
-          result: 'positive' as const,
-          purchaseProbability: 'low' as const,
-          customerPriorities: 'قیمت عمده و نمونه کار',
-          authorId: 'user-maryam',
-          authorName: 'مریم',
-          createdAt: now,
-        },
-      ];
-    })(),
-    noteBoards: [
-      { id: 'note-board-general', name: 'عمومی', color: '#fef08a', order: 0 },
-      { id: 'note-board-work', name: 'کاری', color: '#bbf7d0', order: 1 },
-    ],
-    notes: [
-      {
-        id: 'note-1',
-        boardId: 'note-board-general',
-        title: 'ایده کمپین',
-        content: 'تمرکز بر بسته‌بندی جدید',
-        color: '#fef08a',
-        checklist: [{ id: 'cl-1', title: 'طراحی بسته‌بندی', done: false }],
-        archived: false,
-        deletedAt: null,
-        starred: true,
-      },
-      {
-        id: 'note-2',
-        boardId: 'note-board-work',
-        title: 'جلسه هفتگی',
-        content: 'دستور جلسه را قبل از دوشنبه آماده کنید.',
-        color: '#bbf7d0',
-        checklist: [],
-        archived: false,
-        deletedAt: null,
-        starred: false,
-      },
-    ],
-    activeNoteBoardId: 'note-board-general',
-    activeBoardId: bId,
-  };
-}
-
-function seedChatMock(): {
-  threads: MeizitoChatThread[];
-  messages: MeizitoChatMessage[];
-  activeThreadId: string;
-} {
-  const thDirect = 'thread-direct';
-  const thGroup = 'thread-group';
-  const thChannel = 'thread-channel';
-  const now = new Date().toISOString();
-  const msg1: MeizitoChatMessage = {
-    id: 'msg-1',
-    threadId: thDirect,
-    author: 'واحد تولید',
-    body: 'سلام، گزارش QC خط تولید امروز آماده شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg2: MeizitoChatMessage = {
-    id: 'msg-2',
-    threadId: thDirect,
-    author: MEIZITO_CURRENT_USER_NAME,
-    body: 'عالیه، لطفاً فایل نهایی را همینجا ارسال کنید.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg3: MeizitoChatMessage = {
-    id: 'msg-3',
-    threadId: thGroup,
-    author: 'سارا',
-    body: 'فاکتور جدید در سیستم ثبت شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  const msg4: MeizitoChatMessage = {
-    id: 'msg-4',
-    threadId: thChannel,
-    author: 'مدیریت',
-    body: 'بخشنامه جدید حقوق و مزایا صادر شد.',
-    createdAt: now,
-    type: 'text',
-    attachmentNames: [],
-  };
-  return {
-    threads: [
-      {
-        id: thDirect,
-        title: 'واحد تولید',
-        threadType: 'direct',
-        participantNames: ['واحد تولید'],
-        starred: false,
-        pinned: false,
-        messageIds: [msg1.id, msg2.id],
-      },
-      {
-        id: thGroup,
-        title: 'تیم فروش نکسایی',
-        threadType: 'group',
-        participantNames: ['امیرحسین', 'سارا', 'رضا'],
-        starred: true,
-        pinned: true,
-        messageIds: [msg3.id],
-      },
-      {
-        id: thChannel,
-        title: 'اطلاعیه‌های سازمان',
-        threadType: 'channel',
-        participantNames: [],
-        starred: false,
-        pinned: false,
-        messageIds: [msg4.id],
-      },
-    ],
-    messages: [msg1, msg2, msg3, msg4],
-    activeThreadId: thDirect,
-  };
-}
-
-function seedData() {
-  return {
-    currentUserId: DEFAULT_USER_ID,
-    activeThreadId: 'thread-direct',
-  };
-}
-
-function seedCalendarMock(): {
-  calendars: MeizitoCalendar[];
-  calendarEvents: MeizitoCalendarEvent[];
-  activeCalendarId: string;
-} {
-  const todayKey = dateKeyOffset(0);
-  return {
-    calendars: defaultCalendarsSeed(),
-    calendarEvents: [
-      {
-        id: 'evt-1',
-        calendarId: 'cal-customer',
-        title: 'تماس پیگیری مشتری VIP',
-        date: todayKey,
-        time: '14:00',
-        notes: 'پیگیری سفارش معوق',
-      },
-      {
-        id: 'evt-2',
-        calendarId: 'cal-service',
-        title: 'بازدید سرویس دوره‌ای',
-        date: dateKeyOffset(3),
-        time: '09:30',
-      },
-    ],
-    activeCalendarId: 'cal-customer',
-  };
-}
-
-function seedLettersMock(): MeizitoLetter[] {
-  const threadLet = 'thread-let-1';
-  const t0 = new Date(Date.now() - 2 * 86400000).toISOString();
-  const t1 = new Date(Date.now() - 86400000).toISOString();
-  return [
-    {
-      id: 'let-1',
-      subject: 'درخواست جلسه',
-      body: 'با سلام،\nبدینوسیله درخواست جلسه در تاریخ ... را اعلام می‌کنم.',
-      to: ['مدیر فروش'],
-      labels: ['اداری'],
-      category: 'administrative' as const,
-      status: 'open' as const,
-      box: 'inbox' as const,
-      referredTo: ['واحد مالی'],
-      referredFrom: MEIZITO_CURRENT_USER_NAME,
-      threadId: threadLet,
-      attachments: [],
-      createdAt: t0,
-    },
-    {
-      id: 'let-2',
-      subject: 'Re: درخواست جلسه',
-      body: 'با سلام،\nموضوع در دست بررسی است.\n\n---\nنامه قبلی:\nدرخواست جلسه...',
-      to: [MEIZITO_CURRENT_USER_NAME],
-      labels: ['اداری'],
-      category: 'administrative' as const,
-      status: 'open' as const,
-      box: 'inbox' as const,
-      referredTo: [],
-      referredFrom: 'مدیر فروش',
-      replyToLetterId: 'let-1',
-      threadId: threadLet,
-      attachments: [],
-      createdAt: t1,
-    },
-    {
-      id: 'let-3',
-      subject: 'گزارش ماهانه',
-      body: 'پیوست گزارش ارسال شد.',
-      to: ['مدیریت'],
-      labels: ['گزارش', 'مالی'],
-      category: 'financial' as const,
-      status: 'closed' as const,
-      box: 'archive' as const,
-      referredTo: ['مدیریت'],
-      referredFrom: MEIZITO_CURRENT_USER_NAME,
-      threadId: 'thread-let-2',
-      attachments: [{ name: 'report.pdf', size: '۲۴۰ KB' }],
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
-
-function seedRequestsMock(): MeizitoInternalRequest[] {
-  const todayKey = dateKeyOffset(0);
-  const now = new Date().toISOString();
-  return [
-    {
-      id: 'req-1',
-      subject: 'هماهنگی پرینتر',
-      body: 'لطفاً پرینتر طبقه فروش را بررسی و کارتریج تهیه کنید.',
-      status: 'open' as const,
-      referredToUserIds: ['user-maryam'],
-      referredTo: ['مریم'],
-      ccUserIds: [],
-      authorId: 'user-sara',
-      authorName: 'سارا',
-      createdAt: now,
-      approvalState: 'approved' as const,
-      approvalSteps: [],
-    },
-    {
-      id: 'req-2',
-      subject: 'درخواست کامپیوتر',
-      body: 'لطفاً برای ایستگاه کاری جدید یک سیستم تاییدشده تهیه شود.',
-      status: 'open' as const,
-      authorId: 'user-reza',
-      authorName: 'رضا',
-      createdAt: now,
-      priority: 'high' as const,
-      category: 'administrative' as const,
-      attachments: [],
-      approvalState: 'pending' as const,
-      currentAssigneeId: 'user-manager',
-      submittedAt: now,
-      approvalSteps: [
-        {
-          id: 'ap-seed-1',
-          actorId: 'user-reza',
-          actorName: 'رضا',
-          action: 'submit' as const,
-          comment: 'ارسال برای تایید',
-          at: now,
-        },
-      ],
-    },
-  ];
 }
 
 export interface MeizitoContextValue {
@@ -971,96 +384,34 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   const useMockUserSwitcher = isMockUserSwitcherEnabled();
   const [teamMembers, setTeamMembers] = useState<MeizitoMockUser[]>([]);
 
-  const stored = useMemo(() => readStored(), []);
-  const seed = useMemo(() => seedData(), []);
-  const workspaceSeed = useMemo(() => seedWorkspaceMock(), []);
-  const chatSeed = useMemo(() => seedChatMock(), []);
-  const calendarSeed = useMemo(() => seedCalendarMock(), []);
-  const lettersSeed = useMemo(() => seedLettersMock(), []);
-  const requestsSeed = useMemo(() => seedRequestsMock(), []);
-  const workspaceFromApi = dataSources.workspace === 'api';
-  const requestsFromApi = dataSources.requests === 'api';
-  const lettersFromApi = dataSources.letters === 'api';
-  const calendarFromApi = dataSources.calendar === 'api';
-  const chatFromApi = dataSources.chat === 'api';
-  const [boards, setBoards] = useState<MeizitoBoard[]>(() =>
-    workspaceFromApi ? [] : (stored.boards ?? workspaceSeed.boards)
-  );
-  const [columns, setColumns] = useState<MeizitoColumn[]>(() =>
-    workspaceFromApi ? [] : (stored.columns ?? workspaceSeed.columns)
-  );
-  const [cards, setCards] = useState<MeizitoCard[]>(() =>
-    workspaceFromApi ? [] : (stored.cards ?? workspaceSeed.cards)
-  );
-  const [projects, setProjects] = useState<MeizitoProject[]>(() =>
-    workspaceFromApi ? [] : (stored.projects ?? workspaceSeed.projects).map(normalizeProject)
-  );
-  const [threads, setThreads] = useState<MeizitoChatThread[]>(() =>
-    chatFromApi ? [] : (stored.threads ?? chatSeed.threads).map(normalizeThread)
-  );
-  const [messages, setMessages] = useState<MeizitoChatMessage[]>(() =>
-    chatFromApi ? [] : (stored.messages ?? chatSeed.messages).map(normalizeMessage)
-  );
-  const [letters, setLetters] = useState<MeizitoLetter[]>(() =>
-    lettersFromApi ? [] : (stored.letters ?? lettersSeed).map(normalizeLetter)
-  );
-  const [dailyReports, setDailyReports] = useState<MeizitoDailyReport[]>(() =>
-    workspaceFromApi
-      ? []
-      : (stored.dailyReports ?? workspaceSeed.dailyReports ?? []).map(normalizeDailyReport)
-  );
-  const [fieldVisits, setFieldVisits] = useState<MeizitoFieldVisit[]>(() =>
-    workspaceFromApi
-      ? []
-      : (stored.fieldVisits ?? workspaceSeed.fieldVisits ?? []).map(normalizeFieldVisit)
-  );
-  const [internalRequests, setInternalRequests] = useState<MeizitoInternalRequest[]>(() =>
-    requestsFromApi
-      ? []
-      : (stored.internalRequests ?? requestsSeed).map(normalizeInternalRequest)
-  );
-  const [currentUserId, setCurrentUserIdState] = useState(
-    () => stored.currentUserId ?? seed.currentUserId ?? DEFAULT_USER_ID
-  );
-  const [noteBoards, setNoteBoards] = useState<MeizitoNoteBoard[]>(() =>
-    workspaceFromApi ? [] : (stored.noteBoards ?? workspaceSeed.noteBoards ?? [])
-  );
-  const [notes, setNotes] = useState<MeizitoNote[]>(() => {
-    if (workspaceFromApi) return [];
-    const nb = stored.noteBoards ?? workspaceSeed.noteBoards ?? [];
-    const defaultBoardId = nb[0]?.id ?? DEFAULT_NOTE_BOARD_ID;
-    const raw = stored.notes ?? workspaceSeed.notes ?? [];
-    return raw.map((n) => normalizeNote(n, defaultBoardId));
-  });
-  const [activeNoteBoardId, setActiveNoteBoardIdState] = useState(() =>
-    workspaceFromApi
-      ? DEFAULT_NOTE_BOARD_ID
-      : (stored.activeNoteBoardId ?? workspaceSeed.activeNoteBoardId ?? DEFAULT_NOTE_BOARD_ID)
-  );
-  const [calendars, setCalendars] = useState<MeizitoCalendar[]>(() =>
-    calendarFromApi ? [] : (stored.calendars ?? calendarSeed.calendars).map(normalizeCalendar)
-  );
-  const [calendarEvents, setCalendarEvents] = useState<MeizitoCalendarEvent[]>(() =>
-    calendarFromApi
-      ? []
-      : (stored.calendarEvents ?? calendarSeed.calendarEvents).map(normalizeCalendarEvent)
-  );
-  const [activeCalendarId, setActiveCalendarIdState] = useState(() =>
-    calendarFromApi
-      ? 'cal-customer'
-      : (stored.activeCalendarId ?? calendarSeed.activeCalendarId ?? 'cal-customer')
-  );
-  const [activeBoardId, setActiveBoardIdState] = useState(() =>
-    workspaceFromApi ? '' : (stored.activeBoardId ?? workspaceSeed.activeBoardId)
-  );
-  const [activeThreadId, setActiveThreadIdState] = useState(() =>
-    chatFromApi ? '' : (stored.activeThreadId ?? seed.activeThreadId ?? chatSeed.activeThreadId)
-  );
+  const [boards, setBoards] = useState<MeizitoBoard[]>([]);
+  const [columns, setColumns] = useState<MeizitoColumn[]>([]);
+  const [cards, setCards] = useState<MeizitoCard[]>([]);
+  const [projects, setProjects] = useState<MeizitoProject[]>([]);
+  const [threads, setThreads] = useState<MeizitoChatThread[]>([]);
+  const [messages, setMessages] = useState<MeizitoChatMessage[]>([]);
+  const [letters, setLetters] = useState<MeizitoLetter[]>([]);
+  const [dailyReports, setDailyReports] = useState<MeizitoDailyReport[]>([]);
+  const [fieldVisits, setFieldVisits] = useState<MeizitoFieldVisit[]>([]);
+  const [internalRequests, setInternalRequests] = useState<MeizitoInternalRequest[]>([]);
+  const [currentUserId, setCurrentUserIdState] = useState('');
+  const [noteBoards, setNoteBoards] = useState<MeizitoNoteBoard[]>([]);
+  const [notes, setNotes] = useState<MeizitoNote[]>([]);
+  const [activeNoteBoardId, setActiveNoteBoardIdState] = useState(DEFAULT_NOTE_BOARD_ID);
+  const [calendars, setCalendars] = useState<MeizitoCalendar[]>([]);
+  const [calendarEvents, setCalendarEvents] = useState<MeizitoCalendarEvent[]>([]);
+  const [activeCalendarId, setActiveCalendarIdState] = useState('');
+  const [activeBoardId, setActiveBoardIdState] = useState('');
+  const [activeThreadId, setActiveThreadIdState] = useState('');
 
-  const directoryUsers = useMemo(
-    () => (dataSources.teamDirectory === 'api' ? teamMembers : [...MEIZITO_MOCK_USERS]),
-    [teamMembers, dataSources.teamDirectory]
-  );
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    for (const key of LEGACY_MEIZITO_STORAGE_KEYS) {
+      window.localStorage.removeItem(key);
+    }
+  }, []);
+
+  const directoryUsers = useMemo(() => teamMembers, [teamMembers]);
 
   const refreshTeamDirectory = useCallback(async () => {
     if (dataSources.teamDirectory !== 'api' || !activeBusinessId) {
@@ -1163,7 +514,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
     setActiveCalendarIdState((prev) =>
       snapshot.calendars.some((c) => c.id === prev)
         ? prev
-        : (snapshot.calendars[0]?.id ?? 'cal-customer')
+        : (snapshot.calendars[0]?.id ?? '')
     );
   }, []);
 
@@ -1218,75 +569,8 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   }, [refreshRequests]);
 
   useEffect(() => {
-    if (dataSources.teamDirectory !== 'api' || !sessionUserId) return;
-    setCurrentUserIdState(sessionUserId);
-  }, [sessionUserId, dataSources.teamDirectory]);
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const persistRequests = !requestsFromApi;
-    const persistLetters = !lettersFromApi;
-    const persistCalendar = !calendarFromApi;
-    const persistChat = !chatFromApi;
-    if (dataSources.workspace === 'api') {
-      const payload: Stored = {
-        ...(persistChat ? { threads, messages, activeThreadId } : {}),
-        ...(persistLetters ? { letters } : {}),
-        ...(persistRequests ? { internalRequests } : {}),
-        ...(persistCalendar ? { calendars, calendarEvents, activeCalendarId } : {}),
-        currentUserId,
-        activeBoardId,
-        activeNoteBoardId,
-        activeThreadId,
-      };
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      return;
-    }
-    const payload: Stored = {
-      boards,
-      columns,
-      cards,
-      projects,
-      ...(persistChat ? { threads, messages, activeThreadId } : {}),
-      ...(persistLetters ? { letters } : {}),
-      dailyReports,
-      fieldVisits,
-      ...(persistRequests ? { internalRequests } : {}),
-      ...(persistCalendar ? { calendars, calendarEvents, activeCalendarId } : {}),
-      currentUserId,
-      notes,
-      noteBoards,
-      activeNoteBoardId,
-      activeBoardId,
-      activeThreadId,
-    };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-  }, [
-    boards,
-    columns,
-    cards,
-    projects,
-    threads,
-    messages,
-    letters,
-    dailyReports,
-    fieldVisits,
-    internalRequests,
-    currentUserId,
-    notes,
-    noteBoards,
-    activeNoteBoardId,
-    calendars,
-    calendarEvents,
-    activeCalendarId,
-    activeBoardId,
-    activeThreadId,
-    dataSources.workspace,
-    requestsFromApi,
-    lettersFromApi,
-    calendarFromApi,
-    chatFromApi,
-  ]);
+    if (sessionUserId) setCurrentUserIdState(sessionUserId);
+  }, [sessionUserId]);
 
   const setActiveBoardId = useCallback((id: string) => setActiveBoardIdState(id), []);
   const setActiveThreadId = useCallback((id: string) => setActiveThreadIdState(id), []);
@@ -1778,19 +1062,22 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const setCurrentUserId = useCallback((id: string) => {
-    if (useMockUserSwitcher) {
-      if (!MEIZITO_MOCK_USERS.some((u) => u.id === id)) return;
-    } else if (!directoryUsers.some((u) => u.id === id)) return;
+    if (!directoryUsers.some((u) => u.id === id)) return;
     setCurrentUserIdState(id);
-    if (typeof window !== 'undefined' && useMockUserSwitcher) {
-      window.localStorage.setItem(MEIZITO_CURRENT_USER_ID_KEY, id);
-    }
-  }, [useMockUserSwitcher, directoryUsers]);
+  }, [directoryUsers]);
 
-  const currentUser = useMemo(
-    () => directoryUsers.find((u) => u.id === currentUserId) ?? directoryUsers[0],
-    [currentUserId, directoryUsers]
-  );
+  const currentUser = useMemo((): MeizitoMockUser | undefined => {
+    const fromDir = directoryUsers.find((u) => u.id === currentUserId);
+    if (fromDir) return fromDir;
+    if (sessionUserId && auth?.user) {
+      return {
+        id: sessionUserId,
+        name: auth.user.displayName,
+        role: 'member',
+      };
+    }
+    return directoryUsers[0];
+  }, [currentUserId, directoryUsers, sessionUserId, auth?.user]);
 
   const isCurrentUserManager = isManagerRole(currentUser?.role ?? 'member');
 
