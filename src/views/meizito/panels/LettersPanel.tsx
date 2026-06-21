@@ -117,6 +117,8 @@ export default function LettersPanel() {
   const [form, setForm] = useState<LetterFormState>(() => emptyForm(currentUserName));
   const [collapsedThreads, setCollapsedThreads] = useState<Record<string, boolean>>({});
   const [ncPickerOpen, setNcPickerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const allLabels = useMemo(() => {
     const set = new Set<string>();
@@ -237,7 +239,8 @@ export default function LettersPanel() {
     }));
   };
 
-  const submitLetter = () => {
+  const submitLetter = async () => {
+    if (submitting) return;
     const payload = {
       subject: form.subject || 'بدون موضوع',
       body: form.body,
@@ -252,18 +255,29 @@ export default function LettersPanel() {
       createdAt: new Date().toISOString(),
     };
 
-    let letterId: string;
-    if (form.replyToLetterId) {
-      replyToLetter(form.replyToLetterId, payload);
-      letterId = form.threadId || form.replyToLetterId;
-    } else {
-      letterId = addLetter({
-        ...payload,
-        ...(form.threadId ? { threadId: form.threadId } : {}),
-      });
+    setSubmitting(true);
+    setSubmitError('');
+    try {
+      let letterId: string;
+      if (form.replyToLetterId) {
+        letterId = await replyToLetter(form.replyToLetterId, payload);
+      } else {
+        letterId = await addLetter({
+          ...payload,
+          ...(form.threadId ? { threadId: form.threadId } : {}),
+        });
+      }
+      if (letterId) submitForApproval('letter', letterId);
+      resetForm();
+      setBox('outbox');
+      setStatusFilter('open');
+      setSearchQuery('');
+      setLabelFilter(null);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : 'ارسال نامه ناموفق بود.');
+    } finally {
+      setSubmitting(false);
     }
-    submitForApproval('letter', letterId);
-    resetForm();
   };
 
   const toggleThread = (threadId: string) => {
@@ -466,10 +480,12 @@ export default function LettersPanel() {
         <button
           type="button"
           onClick={submitLetter}
-          className="nexa-btn-primary py-2 px-4 text-sm font-bold"
+          disabled={submitting}
+          className="nexa-btn-primary py-2 px-4 text-sm font-bold disabled:opacity-60"
         >
-          ارسال به خروجی
+          {submitting ? 'در حال ارسال…' : 'ارسال به خروجی'}
         </button>
+        {submitError && <p className="text-xs font-bold text-red-600">{submitError}</p>}
       </div>
 
       <div className="space-y-3">

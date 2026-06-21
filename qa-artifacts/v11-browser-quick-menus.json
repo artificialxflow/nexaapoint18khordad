@@ -1,6 +1,6 @@
 {
-  "date": "2026-06-21T08:22:26.877Z",
-  "baseUrl": "http://nexaapoint18khordad.91.107.177.182.sslip.io",
+  "date": "2026-06-21T08:58:15.963Z",
+  "baseUrl": "http://localhost:3000",
   "tool": "CDP direct",
   "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "results": [
@@ -8,7 +8,7 @@
       "phase": "Setup",
       "name": "/login opens",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/login"
+      "detail": "http://localhost:3000/login"
     },
     {
       "phase": "Setup",
@@ -29,7 +29,7 @@
       "phase": "Dashboard",
       "name": "/dashboard/dashboard",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/dashboard"
+      "detail": "http://localhost:3000/dashboard/dashboard"
     },
     {
       "phase": "Dashboard",
@@ -40,7 +40,7 @@
       "phase": "Workspace",
       "name": "/dashboard/tasks",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks"
+      "detail": "http://localhost:3000/dashboard/tasks"
     },
     {
       "phase": "Workspace",
@@ -51,7 +51,7 @@
       "phase": "Calendar",
       "name": "/dashboard/tasks?tab=calendar",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=calendar"
+      "detail": "http://localhost:3000/dashboard/tasks?tab=calendar"
     },
     {
       "phase": "Calendar",
@@ -62,7 +62,7 @@
       "phase": "Chat",
       "name": "/dashboard/chats",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/chats"
+      "detail": "http://localhost:3000/dashboard/chats"
     },
     {
       "phase": "Chat",
@@ -73,7 +73,7 @@
       "phase": "Requests",
       "name": "/dashboard/work-requests",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/work-requests"
+      "detail": "http://localhost:3000/dashboard/work-requests"
     },
     {
       "phase": "Requests",
@@ -84,7 +84,7 @@
       "phase": "Letters",
       "name": "/dashboard/tasks?tab=letters",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=letters"
+      "detail": "http://localhost:3000/dashboard/tasks?tab=letters"
     },
     {
       "phase": "Letters",
@@ -95,7 +95,7 @@
       "phase": "Phone",
       "name": "/dashboard/tasks?tab=phone",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=phone"
+      "detail": "http://localhost:3000/dashboard/tasks?tab=phone"
     },
     {
       "phase": "Phone",
@@ -131,13 +131,13 @@
       "phase": "Chat Full QA",
       "name": "Send chat message through UI and persist after refresh",
       "status": "fail",
-      "detail": "Timed out waiting for text: QA_V11_Message_1782030113806"
+      "detail": "Chat message not visible after send. href=http://localhost:3000/dashboard/chats buttons=داشبورد | میز کار | تقویم | گفتگوها | درخواست‌ها | نامه‌ها | دفتر تلفن | فروش | تولید | بازرگانی | سازمان | مالی | سیستم | خروج از سیستم | AG_TEST_1404_1781461447154 | همه | شخصی | گروه‌ها | کانال‌ها | گفتگوی جدید | گروه جدید | کانال جدید | + گفتگوی جدید | + گروه جدید | + کانال جدید | @مدیر کل body=nexa دسترسی سریع داشبورد میز کار تقویم گفتگوها درخواست‌ها نامه‌ها دفتر تلفن فروش تولید بازرگانی سازمان مالی سیستم خروج از سیستم AG_TEST_1404_1781461447154 گفتگوها گفتگوی شخصی، گروه و کانال — یک جام برای همه مکالمات تیمی گفتگو — شخصی، گروه و کانال همه شخصی گروه‌ها کانال‌ها گفتگوی جدید گروه جدید کانال جدید گفتگویی نیست. + گفتگوی جدید + گروه جدید + کانال جدید — کانال تاریخ پیامی برای این تاریخ در این گفتگو نیست. @مدیر کل"
     },
     {
       "phase": "Responsive",
       "name": "mobile /dashboard/tasks",
       "status": "pass",
-      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks"
+      "detail": "http://localhost:3000/dashboard/tasks"
     },
     {
       "phase": "Responsive",

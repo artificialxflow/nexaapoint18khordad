@@ -289,11 +289,11 @@ export interface MeizitoContextValue {
   createCardFromText: (boardId: string, columnId: string, title: string, assignee: string, dueDate: string, recurrence: MeizitoRecurrence) => void;
   toggleThreadStar: (id: string) => void;
   toggleThreadPin: (id: string) => void;
-  addLetter: (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => string;
+  addLetter: (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => Promise<string>;
   replyToLetter: (
     sourceId: string,
     letter: Omit<MeizitoLetter, 'id' | 'replyToLetterId' | 'threadId'>
-  ) => void;
+  ) => Promise<string>;
   getLetterThread: (threadId: string) => MeizitoLetter[];
   updateLetterBox: (id: string, box: MeizitoLetter['box']) => void;
   closeLetter: (id: string) => void;
@@ -952,14 +952,12 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addLetter = useCallback(
-    (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => {
+    async (letter: Omit<MeizitoLetter, 'id' | 'threadId'> & { threadId?: string }) => {
       if (useLettersApi && activeBusinessId) {
-        void (async () => {
-          const { letter: created } = await apiCreateLetter(activeBusinessId, letter);
-          await apiSubmitLetter(activeBusinessId, created.id);
-          await refreshLetters();
-        })();
-        return '';
+        const { letter: created } = await apiCreateLetter(activeBusinessId, letter);
+        await apiSubmitLetter(activeBusinessId, created.id);
+        await refreshLetters();
+        return created.id;
       }
       const id = newId();
       const full: MeizitoLetter = normalizeLetter({
@@ -984,16 +982,17 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const replyToLetter = useCallback(
-    (
+    async (
       sourceId: string,
       letter: Omit<MeizitoLetter, 'id' | 'replyToLetterId' | 'threadId'>
     ) => {
       if (useLettersApi && activeBusinessId) {
-        void apiReplyToLetter(activeBusinessId, sourceId, letter).then(() => refreshLetters());
-        return;
+        const { letter: created } = await apiReplyToLetter(activeBusinessId, sourceId, letter);
+        await refreshLetters();
+        return created.id;
       }
       const source = letters.find((l) => l.id === sourceId);
-      if (!source) return;
+      if (!source) return '';
       const id = newId();
       const threadId = source.threadId || source.id;
       const full: MeizitoLetter = normalizeLetter({
@@ -1004,6 +1003,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
         createdAt: letter.createdAt || new Date().toISOString(),
       });
       setLetters((prev) => [...prev, full]);
+      return id;
     },
     [useLettersApi, activeBusinessId, refreshLetters, letters]
   );

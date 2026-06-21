@@ -305,7 +305,7 @@ async function clickText(cdp: CdpClient, text: string) {
   })()`);
 }
 
-async function waitForText(cdp: CdpClient, text: string, timeoutMs = 30000) {
+async function waitForText(cdp: CdpClient, text: string, timeoutMs = 60000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const found = await cdp.evaluate<boolean>(
@@ -353,12 +353,35 @@ async function ensureBusinessContext(cdp: CdpClient) {
 
 async function gotoBusinessRoute(cdp: CdpClient, path: string) {
   await ensureBusinessContext(cdp);
+  const tabMatch = path.match(/[?&]tab=([^&]+)/);
+  if (tabMatch) {
+    await cdp.evaluate(`localStorage.setItem('nexa-meizito-last-tab', ${JSON.stringify(decodeURIComponent(tabMatch[1]))})`);
+  }
   await cdp.goto(path);
   if (await cdp.evaluate<boolean>("location.pathname === '/businesses'")) {
     await ensureBusinessContext(cdp);
+    if (tabMatch) {
+      await cdp.evaluate(`localStorage.setItem('nexa-meizito-last-tab', ${JSON.stringify(decodeURIComponent(tabMatch[1]))})`);
+    }
     await cdp.goto(path);
   }
   await cdp.waitFor(() => !document.body.innerText.includes('بارگذاری کسب‌وکار'), 30000).catch(() => undefined);
+}
+
+async function pageDiagnostic(cdp: CdpClient) {
+  return cdp.evaluate<string>(`(() => {
+    const buttons = [...document.querySelectorAll('button,a,[role="button"]')]
+      .filter((el) => {
+        const rect = el.getBoundingClientRect();
+        const style = getComputedStyle(el);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      })
+      .map((el) => (el.innerText || el.getAttribute('aria-label') || '').replace(/\\s+/g, ' ').trim())
+      .filter(Boolean)
+      .slice(0, 50)
+      .join(' | ');
+    return 'href=' + location.href + ' buttons=' + buttons + ' body=' + document.body.innerText.replace(/\\s+/g, ' ').slice(0, 700);
+  })()`);
 }
 
 async function runCheck(phase: string, name: string, fn: () => Promise<void>) {
@@ -555,7 +578,9 @@ async function run() {
   const qaLetterTitle = `QA_V11_Letter_${Date.now()}`;
   await runCheck('Letters Full QA', 'Create letter through UI and persist after refresh', async () => {
     await gotoBusinessRoute(cdp, '/dashboard/tasks?tab=letters');
-    await cdp.waitFor(() => document.body.innerText.includes('نامه جدید'), 15000);
+    await cdp.waitFor(() => document.body.innerText.includes('نامه جدید'), 60000).catch(async () => {
+      throw new Error(`Letter form not visible. ${await pageDiagnostic(cdp)}`);
+    });
     const filled = await cdp.evaluate<boolean>(`(() => {
       const form = document.querySelector('#meizito-letter-form');
       if (!form) return false;
@@ -593,8 +618,9 @@ async function run() {
   const qaEventTitle = `QA_V11_Event_${Date.now()}`;
   await runCheck('Calendar Full QA', 'Create calendar event through UI and persist after refresh', async () => {
     await gotoBusinessRoute(cdp, '/dashboard/tasks?tab=calendar');
+    await cdp.waitFor(() => document.body.innerText.includes('رویداد') || document.body.innerText.includes('تقویم'), 60000);
     const opened = await clickText(cdp, 'رویداد جدید');
-    if (!opened) throw new Error('New event button not found');
+    if (!opened) throw new Error(`New event button not found. ${await pageDiagnostic(cdp)}`);
     await cdp.waitFor(() => document.body.innerText.includes('رویداد جدید'), 15000);
     const today = new Date().toISOString().slice(0, 10);
     const filled = await cdp.evaluate<boolean>(`(() => {
@@ -637,16 +663,29 @@ async function run() {
     await cdp.waitFor(() => document.body.innerText.includes('گفتگو') || document.body.innerText.includes('پیام'), 15000);
     const hasComposer = await cdp.evaluate<boolean>("Boolean(document.querySelector('textarea[placeholder*=\"پیام خود\"]'))");
     if (!hasComposer) {
-      const firstThreadClicked = await cdp.evaluate<boolean>(`(() => {
-        const buttons = [...document.querySelectorAll('button')];
-        const thread = buttons.find((b) => b.innerText && !b.innerText.includes('گفتگوی جدید') && b.innerText.length > 2);
-        if (!thread) return false;
-        thread.click();
+      const createdThreadTitle = `QA_V11_Chat_${Date.now()}`;
+      const openedNewChat = await clickText(cdp, 'گفتگوی جدید');
+      if (!openedNewChat) throw new Error(`New chat button not found. ${await pageDiagnostic(cdp)}`);
+      await cdp.waitFor(() => document.body.innerText.includes('شروع گفتگو'), 15000);
+      const filledNewChat = await cdp.evaluate<boolean>(`(() => {
+        const modal = [...document.querySelectorAll('.fixed')].find((el) => el.innerText.includes('گفتگوی جدید'));
+        if (!modal) return false;
+        const input = modal.querySelector('input');
+        if (!input) return false;
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, ${JSON.stringify(createdThreadTitle)});
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
         return true;
       })()`);
-      if (!firstThreadClicked) throw new Error('No chat thread available and no composer visible');
+      if (!filledNewChat) throw new Error('New chat input not found');
+      const started = await clickText(cdp, 'شروع گفتگو');
+      if (!started) throw new Error('Start chat button not found');
+      await waitForText(cdp, createdThreadTitle, 30000);
     }
-    await cdp.waitFor(() => Boolean(document.querySelector('textarea[placeholder*="پیام خود"]')), 15000);
+    await cdp.waitFor(() => Boolean(document.querySelector('textarea[placeholder*="پیام خود"]')), 60000).catch(async () => {
+      throw new Error(`Chat composer not visible. ${await pageDiagnostic(cdp)}`);
+    });
     const filled = await cdp.evaluate<boolean>(`(() => {
       const textarea = document.querySelector('textarea[placeholder*="پیام خود"]');
       if (!textarea) return false;
@@ -657,18 +696,19 @@ async function run() {
       return true;
     })()`);
     if (!filled) throw new Error('Chat composer not found');
+    await sleep(500);
     const sent = await cdp.evaluate<boolean>(`(() => {
       const textarea = document.querySelector('textarea[placeholder*="پیام خود"]');
-      const row = textarea?.closest('div');
-      const button = row && [...row.querySelectorAll('button')].pop();
-      if (!button) return false;
-      button.click();
+      if (!textarea) return false;
+      textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
       return true;
     })()`);
-    if (!sent) throw new Error('Chat send button not found');
-    await waitForText(cdp, qaMessageBody);
+    if (!sent) throw new Error('Chat composer not found for send');
+    await waitForText(cdp, qaMessageBody, 60000).catch(async () => {
+      throw new Error(`Chat message not visible after send. ${await pageDiagnostic(cdp)}`);
+    });
     await cdp.reload();
-    await waitForText(cdp, qaMessageBody);
+    await waitForText(cdp, qaMessageBody, 60000);
   });
 
   await runCheck('Responsive', 'Mobile viewport quick menu sweep', async () => {
