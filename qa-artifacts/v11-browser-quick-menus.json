@@ -1,0 +1,152 @@
+{
+  "date": "2026-06-21T08:22:26.877Z",
+  "baseUrl": "http://nexaapoint18khordad.91.107.177.182.sslip.io",
+  "tool": "CDP direct",
+  "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "results": [
+    {
+      "phase": "Setup",
+      "name": "/login opens",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/login"
+    },
+    {
+      "phase": "Setup",
+      "name": "External Chrome opens production login",
+      "status": "pass"
+    },
+    {
+      "phase": "Setup",
+      "name": "Initial login with provided credential",
+      "status": "pass"
+    },
+    {
+      "phase": "Setup",
+      "name": "Enter first existing business",
+      "status": "pass"
+    },
+    {
+      "phase": "Dashboard",
+      "name": "/dashboard/dashboard",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/dashboard"
+    },
+    {
+      "phase": "Dashboard",
+      "name": "Dashboard menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Workspace",
+      "name": "/dashboard/tasks",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks"
+    },
+    {
+      "phase": "Workspace",
+      "name": "Workspace menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Calendar",
+      "name": "/dashboard/tasks?tab=calendar",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=calendar"
+    },
+    {
+      "phase": "Calendar",
+      "name": "Calendar menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Chat",
+      "name": "/dashboard/chats",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/chats"
+    },
+    {
+      "phase": "Chat",
+      "name": "Chat menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Requests",
+      "name": "/dashboard/work-requests",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/work-requests"
+    },
+    {
+      "phase": "Requests",
+      "name": "Requests menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Letters",
+      "name": "/dashboard/tasks?tab=letters",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=letters"
+    },
+    {
+      "phase": "Letters",
+      "name": "Letters menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Phone",
+      "name": "/dashboard/tasks?tab=phone",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks?tab=phone"
+    },
+    {
+      "phase": "Phone",
+      "name": "Phone directory menu opens",
+      "status": "pass"
+    },
+    {
+      "phase": "Workspace",
+      "name": "Kanban/tab horizontal scroll sanity",
+      "status": "pass"
+    },
+    {
+      "phase": "Workspace Full QA",
+      "name": "Create task through new task modal and persist after refresh",
+      "status": "pass"
+    },
+    {
+      "phase": "Requests Full QA",
+      "name": "Create request through UI and persist after refresh",
+      "status": "pass"
+    },
+    {
+      "phase": "Letters Full QA",
+      "name": "Create letter through UI and persist after refresh",
+      "status": "pass"
+    },
+    {
+      "phase": "Calendar Full QA",
+      "name": "Create calendar event through UI and persist after refresh",
+      "status": "pass"
+    },
+    {
+      "phase": "Chat Full QA",
+      "name": "Send chat message through UI and persist after refresh",
+      "status": "fail",
+      "detail": "Timed out waiting for text: QA_V11_Message_1782030113806"
+    },
+    {
+      "phase": "Responsive",
+      "name": "mobile /dashboard/tasks",
+      "status": "pass",
+      "detail": "http://nexaapoint18khordad.91.107.177.182.sslip.io/dashboard/tasks"
+    },
+    {
+      "phase": "Responsive",
+      "name": "Mobile viewport quick menu sweep",
+      "status": "pass"
+    }
+  ],
+  "consoleIssues": [
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "warning: The width(-1) and height(-1) of chart should be greater than 0,\n       please check the style of container, or the props width(100%) and height(100%),\n       or add a minWidth(0) or minHeight(undefined) or use aspect(undefined) to control the\n       height and width."
+  ]
+}

@@ -265,8 +265,8 @@ export interface MeizitoContextValue {
   setActiveThreadId: (id: string) => void;
   updateBoard: (id: string, patch: Partial<Pick<MeizitoBoard, 'name' | 'memberNames'>>) => void;
   addBoard: (name: string) => void;
-  addColumn: (boardId: string, title: string) => void;
-  addCard: (boardId: string, columnId: string, title: string) => void;
+  addColumn: (boardId: string, title: string) => Promise<string | void>;
+  addCard: (boardId: string, columnId: string, title: string) => Promise<string | void>;
   moveCard: (cardId: string, toColumnId: string, index: number) => void;
   updateCard: (id: string, patch: Partial<MeizitoCard>) => void;
   copyCardForAssignees: (cardId: string, assignees: string[]) => void;
@@ -622,10 +622,11 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addColumn = useCallback(
-    (boardId: string, title: string) => {
+    async (boardId: string, title: string) => {
       if (useWorkspaceApi && activeBusinessId) {
-        void apiAddColumn(activeBusinessId, boardId, title).then(() => refreshWorkspace());
-        return;
+        const { column } = await apiAddColumn(activeBusinessId, boardId, title);
+        await refreshWorkspace();
+        return column.id;
       }
       const id = newId();
       const board = boards.find((b) => b.id === boardId);
@@ -634,15 +635,17 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setBoards((prev) =>
         prev.map((b) => (b.id === boardId ? { ...b, columnIds: [...b.columnIds, id] } : b))
       );
+      return id;
     },
     [boards, useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );
 
   const addCard = useCallback(
-    (boardId: string, columnId: string, title: string) => {
+    async (boardId: string, columnId: string, title: string) => {
       if (useWorkspaceApi && activeBusinessId) {
-        void apiCreateCard(activeBusinessId, { boardId, columnId, title }).then(() => refreshWorkspace());
-        return;
+        const { card } = await apiCreateCard(activeBusinessId, { boardId, columnId, title });
+        await refreshWorkspace();
+        return card.id;
       }
       const id = newId();
       const card: MeizitoCard = {
@@ -665,6 +668,7 @@ export function MeizitoProvider({ children }: { children: React.ReactNode }) {
       setColumns((prev) =>
         prev.map((c) => (c.id === columnId ? { ...c, cardIds: [...c.cardIds, id] } : c))
       );
+      return id;
     },
     [useWorkspaceApi, activeBusinessId, refreshWorkspace]
   );

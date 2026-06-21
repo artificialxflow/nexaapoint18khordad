@@ -35,6 +35,8 @@ export default function BoardsPanel() {
   const [newTaskOpen, setNewTaskOpen] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [newTaskCol, setNewTaskCol] = useState('');
+  const [newTaskSaving, setNewTaskSaving] = useState(false);
+  const [newTaskError, setNewTaskError] = useState('');
   const [detail, setDetail] = useState<MeizitoCard | null>(null);
   const [copyNames, setCopyNames] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,14 +67,41 @@ export default function BoardsPanel() {
   const openNewTask = () => {
     const first = boardCols[0];
     setNewTaskCol(first?.id ?? '');
+    setNewTaskError('');
     setNewTaskOpen(true);
   };
 
-  const submitNewTask = () => {
-    if (!newTaskCol || !activeBoardId || !newTaskTitle.trim()) return;
-    addCard(activeBoardId, newTaskCol, newTaskTitle.trim());
-    setNewTaskTitle('');
-    setNewTaskOpen(false);
+  const submitNewTask = async () => {
+    const title = newTaskTitle.trim();
+    if (!title) {
+      setNewTaskError('عنوان وظیفه را وارد کنید.');
+      return;
+    }
+    if (!activeBoardId) {
+      setNewTaskError('ابتدا یک میز کار انتخاب کنید.');
+      return;
+    }
+
+    setNewTaskSaving(true);
+    setNewTaskError('');
+
+    try {
+      let targetColumnId = newTaskCol || boardCols[0]?.id || '';
+      if (!targetColumnId) {
+        const createdColumnId = await addColumn(activeBoardId, 'انجام نشده');
+        targetColumnId = createdColumnId || '';
+      }
+      if (!targetColumnId) throw new Error('ستون پیش‌فرض ساخته نشد.');
+
+      await addCard(activeBoardId, targetColumnId, title);
+      setNewTaskTitle('');
+      setNewTaskCol('');
+      setNewTaskOpen(false);
+    } catch (err) {
+      setNewTaskError(err instanceof Error ? err.message : 'ثبت وظیفه ناموفق بود.');
+    } finally {
+      setNewTaskSaving(false);
+    }
   };
 
   const toggleLabelOnDetail = (labelId: string) => {
@@ -316,19 +345,27 @@ export default function BoardsPanel() {
               onChange={(e) => setNewTaskCol(e.target.value)}
               className="w-full bg-gray-50 rounded-xl px-3 py-2 text-sm mb-4"
             >
+              {boardCols.length === 0 && <option value="">ستون پیش‌فرض ساخته می‌شود</option>}
               {boardCols.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.title}
                 </option>
               ))}
             </select>
+            {newTaskError && <p className="text-xs font-bold text-red-600 mb-3">{newTaskError}</p>}
             <div className="flex gap-2">
-              <button type="button" onClick={submitNewTask} className="flex-1 nexa-btn-primary py-2 text-sm font-bold">
-                ثبت
+              <button
+                type="button"
+                onClick={submitNewTask}
+                disabled={newTaskSaving}
+                className="flex-1 nexa-btn-primary py-2 text-sm font-bold disabled:opacity-60"
+              >
+                {newTaskSaving ? 'در حال ثبت…' : 'ثبت'}
               </button>
               <button
                 type="button"
                 onClick={() => setNewTaskOpen(false)}
+                disabled={newTaskSaving}
                 className="flex-1 bg-gray-100 rounded-xl py-2 text-sm font-bold"
               >
                 انصراف
