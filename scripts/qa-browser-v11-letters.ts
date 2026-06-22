@@ -221,6 +221,22 @@ async function waitForApiLetterSubject(cdp: CdpClient, subject: string, timeoutM
   throw new Error(`Timed out waiting for API letter subject: ${subject}`);
 }
 
+async function waitForApiLetterBox(cdp: CdpClient, subject: string, box: string, timeoutMs = 90000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await cdp.evaluate<boolean>(`(async () => {
+      const businessId = localStorage.getItem('nexa-active-business-id');
+      if (!businessId) return false;
+      const res = await fetch(${JSON.stringify(`${BASE}/api/meizito/`)} + businessId + '/letters?box=' + ${JSON.stringify(box)}, { credentials: 'include' });
+      const json = await res.json().catch(() => ({}));
+      return !!json.data?.letters?.some((letter) => letter.subject === ${JSON.stringify(subject)} && letter.box === ${JSON.stringify(box)});
+    })()`);
+    if (found) return;
+    await sleep(500);
+  }
+  throw new Error(`Timed out waiting for API letter box: ${subject} -> ${box}`);
+}
+
 async function clickText(cdp: CdpClient, text: string) {
   return cdp.evaluate<boolean>(`(() => {
     const wanted = ${JSON.stringify(text)};
@@ -233,6 +249,21 @@ async function clickText(cdp: CdpClient, text: string) {
       .find((node) => isVisible(node) && (node.innerText || node.getAttribute('aria-label') || '').includes(wanted));
     if (!el) return false;
     el.click();
+    return true;
+  })()`);
+}
+
+async function clickTopFilter(cdp: CdpClient, text: string) {
+  return cdp.evaluate<boolean>(`(() => {
+    const isVisible = (node) => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node);
+      return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const button = [...document.querySelectorAll('button')]
+      .find((node) => isVisible(node) && !node.closest('.nexa-card') && (node.innerText || '').trim() === ${JSON.stringify(text)});
+    if (!button) return false;
+    button.click();
     return true;
   })()`);
 }
@@ -352,10 +383,11 @@ async function createLetter(cdp: CdpClient, input: { subject: string; body: stri
 }
 
 async function showOutboxLetter(cdp: CdpClient, subject: string) {
-  await clickText(cdp, 'خروجی');
-  await clickText(cdp, 'همه');
+  await clickTopFilter(cdp, 'خروجی');
+  await clickTopFilter(cdp, 'همه');
   await setInputByPlaceholder(cdp, 'جستجو', '');
-  await waitForText(cdp, subject, 90000);
+  await setInputByPlaceholder(cdp, 'جستجو', subject);
+  await waitForLetterCard(cdp, subject, 90000);
 }
 
 async function clickLetterAction(cdp: CdpClient, subject: string, actionText: string) {
@@ -365,9 +397,13 @@ async function clickLetterAction(cdp: CdpClient, subject: string, actionText: st
       const style = getComputedStyle(node);
       return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
     };
-    const subjectNode = [...document.querySelectorAll('p')]
-      .find((node) => isVisible(node) && (node.innerText || '').includes(${JSON.stringify(subject)}));
-    const card = subjectNode?.closest('.nexa-card');
+    const card = [...document.querySelectorAll('.nexa-card')]
+      .find((node) =>
+        node.id !== 'meizito-letter-form' &&
+        String(node.className || '').includes('items-start') &&
+        isVisible(node) &&
+        (node.innerText || '').includes(${JSON.stringify(subject)})
+      );
     if (!card) return false;
     const buttons = [...card.querySelectorAll('button')]
       .filter((node) => isVisible(node) && (node.innerText || '').trim() === ${JSON.stringify(actionText)});
@@ -376,6 +412,29 @@ async function clickLetterAction(cdp: CdpClient, subject: string, actionText: st
     button.click();
     return true;
   })()`);
+}
+
+async function waitForLetterCard(cdp: CdpClient, subject: string, timeoutMs = 90000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await cdp.evaluate<boolean>(`(() => {
+      const isVisible = (node) => {
+        const rect = node.getBoundingClientRect();
+        const style = getComputedStyle(node);
+        return rect.width > 0 && rect.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+      };
+      return [...document.querySelectorAll('.nexa-card')]
+        .some((node) =>
+          node.id !== 'meizito-letter-form' &&
+          String(node.className || '').includes('items-start') &&
+          isVisible(node) &&
+          (node.innerText || '').includes(${JSON.stringify(subject)})
+        );
+    })()`);
+    if (found) return;
+    await sleep(500);
+  }
+  throw new Error(`Timed out waiting for letter card: ${subject}`);
 }
 
 async function waitForInputValue(cdp: CdpClient, placeholderPart: string, expectedValue: string) {
@@ -413,6 +472,7 @@ async function run() {
   const baseSubject = `QA_V11_Letter_Base_${stamp}`;
   const replySubject = `Re: ${baseSubject}`;
   const referSubject = `QA_V11_Letter_Refer_${stamp}`;
+  const archiveSubject = `QA_V11_Letter_Archive_${stamp}`;
   const label = `QA_V11_LABEL_${stamp}`;
 
   await check('login and open letters tab', async () => {
@@ -481,13 +541,13 @@ async function run() {
     if (!sent) throw new Error('Send reply button not found');
     await waitForApiLetterSubject(cdp, replySubject);
     await cdp.reload();
-    await clickText(cdp, 'خروجی');
-    await clickText(cdp, 'همه');
+    await clickTopFilter(cdp, 'خروجی');
+    await clickTopFilter(cdp, 'همه');
     await waitForText(cdp, replySubject);
     await waitForText(cdp, 'زنجیره');
     await cdp.reload();
-    await clickText(cdp, 'خروجی');
-    await clickText(cdp, 'همه');
+    await clickTopFilter(cdp, 'خروجی');
+    await clickTopFilter(cdp, 'همه');
     await waitForText(cdp, replySubject);
   });
 
@@ -506,23 +566,32 @@ async function run() {
     await showOutboxLetter(cdp, baseSubject);
     const close = await clickLetterAction(cdp, baseSubject, 'پایان مکاتبه');
     if (!close) throw new Error(`Close letter button not found. ${await pageDiagnostic(cdp)}`);
-    await clickText(cdp, 'آرشیو');
-    await clickText(cdp, 'پایان‌یافته');
+    await clickTopFilter(cdp, 'آرشیو');
+    await clickTopFilter(cdp, 'پایان‌یافته');
     await waitForText(cdp, 'بسته');
     const reopen = await clickText(cdp, 'بازگشایی');
     if (!reopen) throw new Error(`Reopen letter button not found. ${await pageDiagnostic(cdp)}`);
-    await clickText(cdp, 'باز');
+    await clickTopFilter(cdp, 'باز');
     await waitForText(cdp, baseSubject);
   });
 
   await check('archive keeps QA letter in archive box', async () => {
-    await showOutboxLetter(cdp, baseSubject);
-    const archive = await clickLetterAction(cdp, baseSubject, 'آرشیو');
+    await createLetter(cdp, {
+      subject: archiveSubject,
+      body: `QA_V11 archive body ${stamp}`,
+      label,
+    });
+    await showOutboxLetter(cdp, archiveSubject);
+    const archive = await clickLetterAction(cdp, archiveSubject, 'آرشیو');
     if (!archive) throw new Error(`Archive button not found. ${await pageDiagnostic(cdp)}`);
-    await clickText(cdp, 'آرشیو');
-    await waitForText(cdp, baseSubject);
+    await waitForApiLetterBox(cdp, archiveSubject, 'archive');
+    await clickTopFilter(cdp, 'آرشیو');
+    await clickTopFilter(cdp, 'همه');
+    await waitForText(cdp, archiveSubject);
     await cdp.reload();
-    await waitForText(cdp, baseSubject);
+    await clickTopFilter(cdp, 'آرشیو');
+    await clickTopFilter(cdp, 'همه');
+    await waitForText(cdp, archiveSubject);
   });
 
   await check('mobile letters form remains usable', async () => {

@@ -11,6 +11,115 @@ Password handling: provided credential used for login; password is not repeated 
 
 ---
 
+## Stage 1 Local Run — Calendar / Chat / Phone / Dashboard
+
+Date: 2026-06-21  
+Environment: Local Next.js dev server, `http://localhost:3000` (heap `--max-old-space-size=4096`)  
+Browser: external Google Chrome  
+Tool: CDP direct fallback with phase filter (`scripts/qa-browser-v11.ts`)  
+Calendar status: now executed (auto-advance continued past Calendar per user instruction).
+
+### API smoke (run first)
+
+- Calendar: `13/13 passed`
+- Chat: `8/8 passed`
+- Phone: `7/7 passed`
+- Dashboard: `6/6 passed`
+
+### Browser harness (external Chrome)
+
+- Calendar Full QA: **pass** — event `QA_V11_Event_*` created from UI and persisted after refresh.
+- Chat Full QA: **pass** — message `QA_V11_Message_*` sent and confirmed via chat snapshot API + persisted after refresh.
+- Phone Full QA: **pass** — directory search shrinks list for non-matching query, managers filter toggles without overlay.
+- Dashboard Full QA: **pass** — dashboard content (`داشبورد`) + chart svg render with no runtime overlay.
+- Phone/Dashboard route + menu checks: **pass**.
+
+Aggregate browser results across the stage runs: Calendar+Chat `12/12` (after fix), Chat re-run `7/7`, Phone+Dashboard `12/12`.
+
+### Bug found and fixed during this stage
+
+- **Chat message send via harness failed** (`Chat message not visible after send`).
+  - Root cause (harness): the chat composer (`textarea[placeholder="پیام خود را بنویسید..."]`) is always rendered even when no thread is active, and `sendText()` in `src/views/meizito/components/MeizitoChatEmbed.tsx` no-ops unless `activeThreadId` is set. The harness also set the textarea value via the native value setter, which did not update React's controlled state, so the send button (only shown when `body.trim()` is truthy) never appeared.
+  - Fix (in `scripts/qa-browser-v11.ts`, Chat Full QA block):
+    1. Explicitly activate the first thread by clicking its list row (the `button` with an `<h4>` title) before sending; create a thread first if none exist.
+    2. Type the message with real CDP input (`Input.insertText`) after focusing the textarea, so React's `onChange`/`body` state updates and the send button renders.
+    3. Click the actual send button (last button next to the textarea), with a synthetic Enter `keydown` as fallback.
+    4. Verify persistence by polling the chat snapshot API (`GET /api/meizito/{businessId}/chat`, new helper `waitForChatApiMessage`) instead of relying on the date-filtered message view, then reconfirm after reload.
+  - This is a test-harness robustness fix; the product send path (API + `refreshChat`) was already correct, as proven by the Chat API smoke passing `8/8`.
+
+### Harness additions
+
+- Added `Phone Full QA` (search/filter behavior) and `Dashboard Full QA` (KPI/chart render) checks to `scripts/qa-browser-v11.ts`.
+
+---
+
+## Stage 2 Local Run — Products / کالاها
+
+Date: 2026-06-21  
+Environment: Local Next.js dev server, `http://localhost:3000`  
+Prisma migration: `20260621180000_products_v12` (CatalogPriceList, CatalogCategory, CatalogProduct)
+
+### Backend added
+
+- Prisma models: `CatalogPriceList`, `CatalogCategory`, `CatalogProduct`
+- Server layer: `src/lib/products/{access,client,schemas,serialize,server}.ts`
+- API routes under `app/api/products/[businessId]/`:
+  - `catalog` (GET snapshot)
+  - `products` (GET list/search, POST create)
+  - `products/[productId]` (PATCH, DELETE)
+  - `categories`, `price-lists`, `prices` (PATCH bulk)
+- Frontend wiring: `CatalogContext` loads/mutates products via API when `activeBusinessId` is set
+- Smoke script: `scripts/products-smoke.ts` (`npm run test:products`)
+
+### Test results
+
+- API smoke: **11/11 passed** (login, business, empty catalog, price list, category, product CRUD, price patch, DB persistence)
+- Browser QA: **5/5 passed** (create `QA_V12_Product_*` + code from UI, confirmed via catalog API + reload)
+
+### Bug found and fixed during browser QA
+
+- Product form requires both **name** and **code** (`saveDraft` validation in `Products.tsx`); harness initially filled only name, so API POST never fired. Fixed by filling the code field identified via the `کد/شناسه` label.
+
+### Console / network notes
+
+- `401 Unauthorized` during bootstrap/auth — non-blocking.
+- Recharts width/height `-1` warning on dashboard — non-blocking visual risk (tracked as QA-V11-001).
+
+---
+
+## Latest Focused Local Run — Workspace / Requests
+
+Date: 2026-06-21  
+Environment: Local Next.js dev server, `http://localhost:3000`  
+Browser: external Google Chrome  
+Tool: CDP direct fallback with phase filter (`scripts/qa-browser-v11.ts`)  
+Phase filter: `Workspace,Workspace Full QA,Requests,Requests Full QA`  
+Calendar status: intentionally skipped/stopped before Calendar per execution rule.
+
+Result: **11/11 passed**
+
+Checks passed:
+
+- Setup: `/login` opened, credential login succeeded, existing business entered.
+- Workspace route opened and expected workspace content rendered.
+- Workspace horizontal scroll sanity passed.
+- Workspace fake task `QA_V11_Task_*` was created from the new task modal and persisted after refresh.
+- Requests route opened and expected request content rendered.
+- Requests fake item `QA_V11_Request_*` was created from the UI and persisted after refresh.
+
+Console/network notes from artifact:
+
+- `401 Unauthorized` was captured during bootstrap/auth flow and was non-blocking after authenticated state.
+- Recharts width/height warning was captured as a non-blocking visual risk.
+
+Evidence:
+
+- JSON artifact: `qa-artifacts/v11-browser-quick-menus.json`
+- Command shape: `QA_BASE_URL=http://localhost:3000`, `QA_HEADFUL=1`, `QA_SKIP_CALENDAR=1`, `QA_ONLY_PHASES=Workspace,Workspace Full QA,Requests,Requests Full QA`
+- Backend/API smoke already passed before this run: Workspace `18/18`, Requests `12/12`, Letters `13/13`.
+
+---
+
 ## Scope
 
 This run follows the updated lightweight `todo-v11.md` scope:
@@ -21,7 +130,7 @@ This run follows the updated lightweight `todo-v11.md` scope:
 - No "create new workspace board" test.
 - Focus on the quick access menus shown in the sidebar image.
 - External browser only; no Cursor browser/preview.
-- No local `npm run dev`; production URL was used.
+- Earlier menu sanity used production URL; latest focused Workspace/Requests run used local `http://localhost:3000`.
 
 ---
 

@@ -21,6 +21,8 @@ import {
   seedVendors,
 } from '@/src/catalog/catalogSeed';
 import { normalizePhone } from '@/src/lib/pricing';
+import { productsFetch } from '@/src/lib/products/client';
+import { useBusinessOptional } from '@/src/context/BusinessContext';
 import type {
   MoneyDocument,
   Person,
@@ -241,7 +243,28 @@ function reorderByIds<T extends { id: string }>(list: T[], orderedIds: string[])
   return next;
 }
 
+function productToApiPayload(product: Product) {
+  return {
+    name: product.name,
+    code: product.code,
+    type: product.type,
+    categoryIds: product.categoryIds,
+    barcode: product.barcode,
+    images: product.images,
+    salesDescription: product.salesDescription,
+    purchaseDescription: product.purchaseDescription,
+    prices: product.prices,
+    purchasePrice: product.purchasePrice,
+    units: product.units,
+    inventory: product.inventory,
+    tax: product.tax,
+    status: product.status,
+  };
+}
+
 export function CatalogProvider({ children }: { children: React.ReactNode }) {
+  const businessCtx = useBusinessOptional();
+  const activeBusinessId = businessCtx?.activeBusinessId ?? null;
   const stored = useMemo(() => readStoredCatalog(), []);
   const catalogInit = useMemo(() => {
     const priceLists = (stored.priceLists ?? seedPriceLists).map((x) => ({ ...x }));
@@ -278,6 +301,25 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     const g = stored.personGroups ?? seedPersonGroups;
     return g.map((x) => ({ ...x, levels: x.levels.map((l) => ({ ...l })) }));
   });
+
+  const priceListIds = useMemo(() => priceLists.map((x) => x.id), [priceLists]);
+
+  const refreshCatalogFromApi = useCallback(async (businessId: string) => {
+    const data = await productsFetch<{
+      products: Product[];
+      productCategories: ProductCategory[];
+      priceLists: PriceList[];
+    }>(businessId, '/catalog');
+    const listIds = data.priceLists.map((x) => x.id);
+    setPriceLists(data.priceLists);
+    setProductCategories(data.productCategories);
+    setProducts(data.products.map((p) => ensureProductPrices(cloneProduct(p), listIds)));
+  }, []);
+
+  useEffect(() => {
+    if (!activeBusinessId) return;
+    void refreshCatalogFromApi(activeBusinessId).catch(() => undefined);
+  }, [activeBusinessId, refreshCatalogFromApi]);
 
   const upsertPersonGroup = useCallback((payload: { id?: string; name: string; levels: PersonGroupLevel[] }) => {
     setPersonGroups((prev) => {
@@ -416,8 +458,6 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
     return matches;
   }, [people]);
 
-  const priceListIds = useMemo(() => priceLists.map((x) => x.id), [priceLists]);
-
   const replacePerson = useCallback(
     (person: Person) => {
       setPeople((prev) => {
@@ -516,16 +556,48 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
 
   const addProduct = useCallback(
     (product: Product) => {
+      if (activeBusinessId) {
+        void productsFetch<{ product: Product }>(activeBusinessId, '/products', {
+          method: 'POST',
+          body: JSON.stringify(productToApiPayload(product)),
+        })
+          .then(({ product: created }) => {
+            setProducts((prev) => [
+              ensureProductPrices(cloneProduct(created), priceListIds),
+              ...prev.filter((p) => p.id !== product.id),
+            ]);
+          })
+          .catch(() => undefined);
+        return;
+      }
       setProducts((prev) => [
         ensureProductPrices(cloneProduct(product), priceListIds),
         ...prev,
       ]);
     },
-    [priceListIds]
+    [activeBusinessId, priceListIds]
   );
 
   const replaceProduct = useCallback(
     (product: Product) => {
+      if (activeBusinessId && product.id) {
+        void productsFetch<{ product: Product }>(activeBusinessId, `/products/${encodeURIComponent(product.id)}`, {
+          method: 'PATCH',
+          body: JSON.stringify(productToApiPayload(product)),
+        })
+          .then(({ product: updated }) => {
+            setProducts((prev) => {
+              const i = prev.findIndex((p) => p.id === updated.id);
+              const row = ensureProductPrices(cloneProduct(updated), priceListIds);
+              if (i === -1) return [row, ...prev];
+              const next = [...prev];
+              next[i] = row;
+              return next;
+            });
+          })
+          .catch(() => undefined);
+        return;
+      }
       setProducts((prev) => {
         const i = prev.findIndex((p) => p.id === product.id);
         const row = ensureProductPrices(cloneProduct(product), priceListIds);
@@ -535,12 +607,21 @@ export function CatalogProvider({ children }: { children: React.ReactNode }) {
         return next;
       });
     },
-    [priceListIds]
+    [activeBusinessId, priceListIds]
   );
 
-  const removeProduct = useCallback((id: string) => {
-    setProducts((prev) => prev.filter((p) => p.id !== id));
-  }, []);
+  const removeProduct = useCallback(
+    (id: string) => {
+      if (activeBusinessId) {
+        void productsFetch(activeBusinessId, `/products/${encodeURIComponent(id)}`, { method: 'DELETE' })
+          .then(() => setProducts((prev) => prev.filter((p) => p.id !== id)))
+          .catch(() => undefined);
+        return;
+      }
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+    },
+    [activeBusinessId]
+  );
 
   const addPersonCategory = useCallback((name: string) => {
     const trimmed = name.trim();

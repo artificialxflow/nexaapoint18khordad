@@ -1,11 +1,11 @@
 {
-  "date": "2026-06-21T11:26:29.554Z",
+  "date": "2026-06-21T15:16:27.950Z",
   "baseUrl": "http://localhost:3000",
   "testData": {
-    "baseSubject": "QA_V11_Letter_Base_1782040662795",
-    "replySubject": "Re: QA_V11_Letter_Base_1782040662795",
-    "referSubject": "QA_V11_Letter_Refer_1782040662795",
-    "label": "QA_V11_LABEL_1782040662795"
+    "baseSubject": "QA_V11_Letter_Base_1782054942586",
+    "replySubject": "Re: QA_V11_Letter_Base_1782054942586",
+    "referSubject": "QA_V11_Letter_Refer_1782054942586",
+    "label": "QA_V11_LABEL_1782054942586"
   },
   "results": [
     {
@@ -18,44 +18,47 @@
     },
     {
       "name": "create base letter using template and persist in outbox",
-      "status": "pass"
+      "status": "fail",
+      "detail": "Uncaught"
     },
     {
       "name": "search by QA_V11 subject/body",
-      "status": "pass"
+      "status": "fail",
+      "detail": "Field not found: جستجو"
     },
     {
       "name": "label filter works for QA_V11 label",
-      "status": "pass"
+      "status": "fail",
+      "detail": "Field not found: جستجو"
     },
     {
       "name": "category filter keeps created letter visible",
-      "status": "pass"
+      "status": "fail",
+      "detail": "Select option not found: select[1]"
     },
     {
       "name": "reply creates thread and persists",
       "status": "fail",
-      "detail": "CDP command timeout: Runtime.evaluate"
+      "detail": "Field not found: جستجو"
     },
     {
       "name": "refer action pre-fills and sends a referred letter",
       "status": "fail",
-      "detail": "CDP command timeout: Runtime.evaluate"
+      "detail": "Field not found: جستجو"
     },
     {
       "name": "close and reopen QA letter",
       "status": "fail",
-      "detail": "CDP command timeout: Runtime.evaluate"
+      "detail": "Field not found: جستجو"
     },
     {
       "name": "archive keeps QA letter in archive box",
       "status": "fail",
-      "detail": "CDP command timeout: Runtime.evaluate"
+      "detail": "Field not found: موضوع"
     },
     {
       "name": "mobile letters form remains usable",
-      "status": "fail",
-      "detail": "CDP command timeout: Emulation.setDeviceMetricsOverride"
+      "status": "pass"
     }
   ],
   "consoleIssues": []

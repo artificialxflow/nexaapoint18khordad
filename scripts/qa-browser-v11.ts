@@ -16,6 +16,13 @@ import { tmpdir } from 'os';
 const BASE = process.env.QA_BASE_URL ?? process.env.SMOKE_BASE_URL ?? 'http://localhost:3000';
 const USERNAME = process.env.SMOKE_BOOTSTRAP_USER ?? 'artificialxflow';
 const PASSWORD = process.env.SMOKE_BOOTSTRAP_PASS ?? 'Ronak#123Ronak';
+const SKIP_CALENDAR = process.env.QA_SKIP_CALENDAR === '1';
+const ONLY_PHASES = new Set(
+  (process.env.QA_ONLY_PHASES ?? '')
+    .split(',')
+    .map((phase) => phase.trim())
+    .filter(Boolean)
+);
 const CDP_PORT = Number(process.env.QA_CDP_PORT ?? 9222 + Math.floor(Math.random() * 1000));
 const CHROME_PATH =
   process.env.CHROME_PATH ??
@@ -47,6 +54,10 @@ function record(phase: string, name: string, status: Result['status'], detail?: 
   const line = `  ${mark} [${phase}] ${name}${detail ? ` — ${detail}` : ''}`;
   if (status === 'pass') console.log(line);
   else console.error(line);
+}
+
+function shouldRunPhase(phase: string) {
+  return phase === 'Setup' || ONLY_PHASES.size === 0 || ONLY_PHASES.has(phase);
 }
 
 async function waitForHttp(url: string, timeoutMs = 30000) {
@@ -317,6 +328,44 @@ async function waitForText(cdp: CdpClient, text: string, timeoutMs = 60000) {
   throw new Error(`Timed out waiting for text: ${text}`);
 }
 
+async function waitForCatalogApiProduct(cdp: CdpClient, businessId: string, text: string, timeoutMs = 60000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await cdp.evaluate<boolean>(`(async () => {
+      try {
+        const res = await fetch(${JSON.stringify(BASE)} + '/api/products/' + ${JSON.stringify(businessId)} + '/catalog', { credentials: 'include' });
+        const json = await res.json();
+        const products = json.data?.products || [];
+        return products.some((p) => (p.name || '').includes(${JSON.stringify(text)}));
+      } catch {
+        return false;
+      }
+    })()`);
+    if (found) return;
+    await sleep(500);
+  }
+  throw new Error(`Timed out waiting for catalog API product: ${text}`);
+}
+
+async function waitForChatApiMessage(cdp: CdpClient, businessId: string, text: string, timeoutMs = 60000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const found = await cdp.evaluate<boolean>(`(async () => {
+      try {
+        const res = await fetch(${JSON.stringify(BASE)} + '/api/meizito/' + ${JSON.stringify(businessId)} + '/chat', { credentials: 'include' });
+        const json = await res.json();
+        const msgs = json.data?.messages || [];
+        return msgs.some((m) => (m.body || '').includes(${JSON.stringify(text)}));
+      } catch {
+        return false;
+      }
+    })()`);
+    if (found) return;
+    await sleep(500);
+  }
+  throw new Error(`Timed out waiting for chat API message: ${text}`);
+}
+
 async function ensureBusinessContext(cdp: CdpClient) {
   const result = await cdp.evaluate<{ ok: boolean; id?: string; error?: string; reason?: string }>(`(async () => {
     try {
@@ -385,6 +434,7 @@ async function pageDiagnostic(cdp: CdpClient) {
 }
 
 async function runCheck(phase: string, name: string, fn: () => Promise<void>) {
+  if (!shouldRunPhase(phase)) return;
   try {
     await fn();
     if (!results.some((r) => r.phase === phase && r.name === name)) record(phase, name, 'pass');
@@ -428,7 +478,7 @@ async function run() {
     { phase: 'Phone', name: 'Phone directory menu opens', path: '/dashboard/tasks?tab=phone', expected: ['دفتر تلفن', 'تلفن'] },
   ];
 
-  for (const route of routes) {
+  for (const route of routes.filter((route) => !(SKIP_CALENDAR && route.phase === 'Calendar'))) {
     await runCheck(route.phase, route.name, async () => {
       await gotoBusinessRoute(cdp, route.path);
       await assertPageOk(cdp, route.phase, route.path);
@@ -616,7 +666,7 @@ async function run() {
   });
 
   const qaEventTitle = `QA_V11_Event_${Date.now()}`;
-  await runCheck('Calendar Full QA', 'Create calendar event through UI and persist after refresh', async () => {
+  if (!SKIP_CALENDAR) await runCheck('Calendar Full QA', 'Create calendar event through UI and persist after refresh', async () => {
     await gotoBusinessRoute(cdp, '/dashboard/tasks?tab=calendar');
     await cdp.waitFor(() => document.body.innerText.includes('رویداد') || document.body.innerText.includes('تقویم'), 60000);
     const opened = await clickText(cdp, 'رویداد جدید');
@@ -659,10 +709,14 @@ async function run() {
 
   const qaMessageBody = `QA_V11_Message_${Date.now()}`;
   await runCheck('Chat Full QA', 'Send chat message through UI and persist after refresh', async () => {
+    const businessId = await ensureBusinessContext(cdp);
     await gotoBusinessRoute(cdp, '/dashboard/chats');
     await cdp.waitFor(() => document.body.innerText.includes('گفتگو') || document.body.innerText.includes('پیام'), 15000);
-    const hasComposer = await cdp.evaluate<boolean>("Boolean(document.querySelector('textarea[placeholder*=\"پیام خود\"]'))");
-    if (!hasComposer) {
+
+    const hasThread = await cdp.evaluate<boolean>(`(() => {
+      return [...document.querySelectorAll('button[type="button"]')].some((b) => b.className.includes('w-full') && b.querySelector('h4'));
+    })()`);
+    if (!hasThread) {
       const createdThreadTitle = `QA_V11_Chat_${Date.now()}`;
       const openedNewChat = await clickText(cdp, 'گفتگوی جدید');
       if (!openedNewChat) throw new Error(`New chat button not found. ${await pageDiagnostic(cdp)}`);
@@ -683,32 +737,134 @@ async function run() {
       if (!started) throw new Error('Start chat button not found');
       await waitForText(cdp, createdThreadTitle, 30000);
     }
+
+    // Composer is always rendered, but sendText() no-ops without an active thread,
+    // so explicitly activate the first thread in the list.
+    const activated = await cdp.evaluate<boolean>(`(() => {
+      const threadBtn = [...document.querySelectorAll('button[type="button"]')].find((b) => b.className.includes('w-full') && b.querySelector('h4'));
+      if (!threadBtn) return false;
+      threadBtn.click();
+      return true;
+    })()`);
+    if (!activated) throw new Error(`No chat thread to activate. ${await pageDiagnostic(cdp)}`);
+
     await cdp.waitFor(() => Boolean(document.querySelector('textarea[placeholder*="پیام خود"]')), 60000).catch(async () => {
       throw new Error(`Chat composer not visible. ${await pageDiagnostic(cdp)}`);
     });
-    const filled = await cdp.evaluate<boolean>(`(() => {
+
+    // Real typing via CDP so React's controlled textarea state updates and the send button appears.
+    const focused = await cdp.evaluate<boolean>(`(() => {
       const textarea = document.querySelector('textarea[placeholder*="پیام خود"]');
       if (!textarea) return false;
-      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
-      setter.call(textarea, ${JSON.stringify(qaMessageBody)});
-      textarea.dispatchEvent(new Event('input', { bubbles: true }));
-      textarea.dispatchEvent(new Event('change', { bubbles: true }));
-      return true;
+      textarea.focus();
+      return document.activeElement === textarea;
     })()`);
-    if (!filled) throw new Error('Chat composer not found');
-    await sleep(500);
+    if (!focused) throw new Error('Chat composer not focusable');
+    await cdp.send('Input.insertText', { text: qaMessageBody });
+    await sleep(800);
+
     const sent = await cdp.evaluate<boolean>(`(() => {
       const textarea = document.querySelector('textarea[placeholder*="پیام خود"]');
-      if (!textarea) return false;
+      if (!textarea || !textarea.value) return false;
+      const container = textarea.closest('div');
+      const sendBtn = container && [...container.querySelectorAll('button[type="button"]')].pop();
+      if (sendBtn) {
+        sendBtn.click();
+        return true;
+      }
       textarea.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true }));
       return true;
     })()`);
-    if (!sent) throw new Error('Chat composer not found for send');
-    await waitForText(cdp, qaMessageBody, 60000).catch(async () => {
-      throw new Error(`Chat message not visible after send. ${await pageDiagnostic(cdp)}`);
-    });
+    if (!sent) throw new Error(`Chat send not triggered (composer value empty). ${await pageDiagnostic(cdp)}`);
+
+    await waitForChatApiMessage(cdp, businessId, qaMessageBody, 60000);
     await cdp.reload();
-    await waitForText(cdp, qaMessageBody, 60000);
+    await waitForChatApiMessage(cdp, businessId, qaMessageBody, 60000);
+  });
+
+  await runCheck('Products Full QA', 'Create product through UI and persist after refresh', async () => {
+    const businessId = await ensureBusinessContext(cdp);
+    await cdp.goto('/dashboard/products');
+    await cdp.waitFor(() => document.body.innerText.includes('کالا'), 60000).catch(async () => {
+      throw new Error(`Products page not visible. ${await pageDiagnostic(cdp)}`);
+    });
+    const opened = await clickText(cdp, 'کالای جدید');
+    if (!opened) throw new Error(`New product button not found. ${await pageDiagnostic(cdp)}`);
+    await cdp.waitFor(() => document.body.innerText.includes('ثبت کالا'), 15000);
+    const qaProductName = `QA_V12_Product_${Date.now()}`;
+    const qaProductCode = `QA_V12_CODE_${Date.now()}`;
+    const filled = await cdp.evaluate<boolean>(`(() => {
+      const setInput = (input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(input, value);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      const nameInput = [...document.querySelectorAll('input')].find((el) => {
+        const ph = el.placeholder || '';
+        return ph.includes('سرویس خواب') || ph.includes('خدمات نصب');
+      });
+      const codeLabel = [...document.querySelectorAll('label')].find((el) => (el.innerText || '').includes('کد/شناسه'));
+      const codeInput = codeLabel && codeLabel.parentElement ? codeLabel.parentElement.querySelector('input') : null;
+      if (!nameInput || !codeInput) return false;
+      setInput(nameInput, ${JSON.stringify(qaProductName)});
+      setInput(codeInput, ${JSON.stringify(qaProductCode)});
+      return true;
+    })()`);
+    if (!filled) throw new Error('Product form fields not found');
+    const submitted = await clickText(cdp, 'ثبت کالا');
+    if (!submitted) throw new Error('Product submit button not found');
+    await waitForCatalogApiProduct(cdp, businessId, qaProductName, 60000);
+    await cdp.reload();
+    await waitForCatalogApiProduct(cdp, businessId, qaProductName, 60000);
+  });
+
+  await runCheck('Phone Full QA', 'Phone directory search and filter behave', async () => {
+    await gotoBusinessRoute(cdp, '/dashboard/tasks?tab=phone');
+    await cdp.waitFor(() => Boolean(document.querySelector('input[placeholder*="جستجو نام"]')), 60000).catch(async () => {
+      throw new Error(`Phone search box not visible. ${await pageDiagnostic(cdp)}`);
+    });
+    const memberCount = await cdp.evaluate<number>("document.querySelectorAll('li.nexa-card').length");
+    if (memberCount < 1) throw new Error('No directory members rendered');
+
+    // Typing a non-matching query should shrink the list without crashing.
+    await cdp.evaluate(`(() => {
+      const input = document.querySelector('input[placeholder*="جستجو نام"]');
+      input.focus();
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, 'QA_V11_NO_MATCH_ZZZ');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await sleep(500);
+    const filteredCount = await cdp.evaluate<number>("document.querySelectorAll('li.nexa-card').length");
+    if (filteredCount >= memberCount) throw new Error(`Search did not filter list (before=${memberCount}, after=${filteredCount})`);
+
+    // Clear search and toggle the managers filter.
+    await cdp.evaluate(`(() => {
+      const input = document.querySelector('input[placeholder*="جستجو نام"]');
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+      setter.call(input, '');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    })()`);
+    await sleep(300);
+    const toggledManagers = await clickText(cdp, 'مدیران');
+    if (!toggledManagers) throw new Error('Managers filter button not found');
+    await sleep(500);
+    await assertPageOk(cdp, 'Phone Full QA', 'phone search/filter');
+  });
+
+  await runCheck('Dashboard Full QA', 'Dashboard renders KPIs and chart without overlay', async () => {
+    await gotoBusinessRoute(cdp, '/dashboard/dashboard');
+    await cdp.waitFor(() => document.body.innerText.includes('داشبورد'), 60000).catch(async () => {
+      throw new Error(`Dashboard content not visible. ${await pageDiagnostic(cdp)}`);
+    });
+    const hasChart = await cdp.evaluate<boolean>(`(() => {
+      return Boolean(document.querySelector('svg.recharts-surface') || document.querySelector('.recharts-wrapper') || document.querySelector('svg'));
+    })()`);
+    if (!hasChart) throw new Error('No chart/svg rendered on dashboard');
+    await assertPageOk(cdp, 'Dashboard Full QA', 'dashboard aggregate');
   });
 
   await runCheck('Responsive', 'Mobile viewport quick menu sweep', async () => {

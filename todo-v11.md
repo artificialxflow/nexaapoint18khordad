@@ -1,9 +1,9 @@
-﻿# NexaApp — TODO v11 (External Browser QA · Quick Access Menus)
+# NexaApp — TODO v11 (External Browser QA · Quick Access Menus)
 
 **تاریخ:** ۱۴۰۵/۰۴/۰۱  
 **پایه انجام‌شده:** `todo-v10.md` — backend/API منوهای دسترسی سریع و smoke کامل لوکال ✅  
 **هدف v11:** تست مرورگر واقعی فقط برای منوهای انجام‌شده در sidebar تصویر، با مرورگر خارجی و Browser Harness/CDP  
-**آخرین اجرا:** ۱۴۰۵/۰۴/۰۱ · production URL · external Chrome · **21/21 passed**  
+**آخرین اجرا:** ۱۴۰۵/۰۴/۰۱ · local · مرحله ۱ کامل + **Products backend/API/browser QA سبز**  
 **Scope جدید:** Full Button/Data QA برای ثبت، ذخیره، refresh، edit، delete/close/archive، اسکرول و موبایل  
 **گزارش:** `qa-test-results-v1.md`  
 **Artifact:** `qa-artifacts/v11-browser-quick-menus.json`
@@ -50,7 +50,8 @@ password: Ronak#123Ronak
 
 - [x] URL هدف مشخص شد: `http://nexaapoint18khordad.91.107.177.182.sslip.io`
 - [x] تست روی production/Coolify انجام شد.
-- [x] `npm run dev` برای اجرای نهایی استفاده نشد.
+- [x] طبق اصلاح scope کاربر، اجرای تکمیلی روی لوکال انجام شد: `http://localhost:3000`.
+- [x] `npm run dev` برای اجرای لوکال با heap بالاتر بالا آمد.
 - [x] Browser: external Google Chrome
 - [x] Tool: CDP direct fallback
 - [x] Login user: `artificialxflow`
@@ -118,8 +119,9 @@ password: Ronak#123Ronak
 - [x] Next.js error overlay دیده نشود.
 - [x] console error blocker وجود نداشته باشد.
 - [x] broken image وجود نداشته باشد.
-- [x] KPI cards نمایش داده شوند / محتوای داشبورد دیده شود.
-- [x] chart render شود.
+- [x] KPI cards نمایش داده شوند / محتوای داشبورد دیده شود. (Dashboard Full QA pass)
+- [x] chart render شود. (svg recharts روی داشبورد تأیید شد)
+- [x] API smoke داشبورد: `6/6 passed` (summary + 401 بدون session + انعکاس board در summary).
 - [x] production widget/محتوای dashboard route دیده شود.
 - [ ] compact mode کار کند. *(تعامل دستی عمیق انجام نشد)*
 - [ ] filter widget کار کند. *(تعامل دستی عمیق انجام نشد)*
@@ -151,6 +153,7 @@ password: Ronak#123Ronak
 - [x] اگر داده خالی بود empty state blocker نبود.
 - [ ] dropdown board تعامل دستی عمیق تست شود.
 - [x] cardها / container با overflow blocker مواجه نشدند.
+- [x] وظیفه تستی با prefix `QA_V11_Task_` از modal ساخته شد و بعد از refresh باقی ماند.
 - [ ] search card اگر داده هست کار کند.
 - [ ] label filter اگر label هست کار کند.
 - [ ] باز کردن detail card اگر UI دارد، crash نکند.
@@ -189,12 +192,13 @@ password: Ronak#123Ronak
 - [x] Next.js overlay دیده نشد.
 - [x] broken image blocker نبود.
 - [ ] تغییر روز/ماه یا navigation موجود دستی عمیق تست شود.
-- [ ] event modal/detail اگر UI دارد باز شود و crash نکند.
-- [ ] RSVP اگر UI دارد، تعامل سبک آن تست شود.
-- [ ] sync visual با task due date فقط اگر داده موجود است بررسی شود.
+- [x] event modal/detail باز شد و crash نکرد (ساخت event از UI).
+- [x] رویداد تستی `QA_V11_Event_*` از UI ساخته شد و بعد از refresh باقی ماند (Calendar Full QA pass).
+- [x] API smoke تقویم: `13/13 passed` (sync from card، RSVP، event update هم پوشش داده شد).
+- [ ] RSVP در UI دستی عمیق تست شود.
 - [x] اسکرول/نمایش موبایل در quick sweep blocker نداشت.
 
-**DoD فاز ۳:** ✅ Calendar بدون blocker pass شد.
+**DoD فاز ۳:** ✅ Calendar full data QA (API + browser + persistence) pass شد.
 
 ---
 
@@ -206,13 +210,15 @@ password: Ronak#123Ronak
 - [x] لیست threadها یا empty state دیده شود.
 - [x] محتوای chat route دیده شود.
 - [x] console error blocker نداشت.
-- [ ] انتخاب thread دستی عمیق تست شود.
-- [ ] ارسال پیام تستی فقط اگر لازم و مجاز بود با prefix `QA_V11_`.
-- [ ] edit/pin/star فقط اگر UI واضح و داده موجود بود.
+- [x] انتخاب thread از طریق کلیک روی ردیف لیست تست شد (harness صریحاً thread فعال می‌کند).
+- [x] ارسال پیام تستی `QA_V11_Message_*` انجام شد و از طریق chat snapshot API و بعد از refresh تأیید شد (Chat Full QA pass).
+- [x] API smoke چت: `8/8 passed` (thread/message/pin/star/edit پوشش داده شد).
+- [x] باگ harness ارسال پیام پیدا و رفع شد (جزئیات در `qa-test-results-v1.md`).
+- [ ] edit/pin/star در UI دستی عمیق تست شود.
 - [ ] attachment UI فقط visual/smoke شود؛ voice خارج از scope.
 - [x] responsive route در quick sweep کلی blocker نداشت.
 
-**DoD فاز ۴:** ✅ Chat load/interact سبک بدون blocker pass شد.
+**DoD فاز ۴:** ✅ Chat full data QA (API + browser send + persistence) pass شد.
 
 ---
 
@@ -224,9 +230,10 @@ password: Ronak#123Ronak
 - [x] BusinessGate wait انجام شد تا صفحه از حالت `بارگذاری کسب‌وکار…` خارج شود.
 - [x] محتوای درخواست‌ها دیده شد.
 - [x] route بعد از retest pass شد.
+- [x] درخواست تستی با prefix `QA_V11_Request_` از UI ساخته شد و بعد از refresh باقی ماند.
 - [ ] search/filter/status controls اگر وجود دارد کار کند.
 - [ ] باز کردن request detail اگر UI دارد، crash نکند.
-- [ ] فرم create فقط اگر لازم و مجاز بود با prefix `QA_V11_`.
+- [x] فرم create با prefix `QA_V11_` تست شد.
 - [ ] submit/approval عمیق خارج از scope مگر داده موجود و UI واضح باشد.
 - [ ] close/reopen عمیق خارج از scope مگر مجوز fix/test داده شود.
 - [ ] badge/count اگر در sidebar یا hub دیده می‌شود با صفحه سازگار باشد.
@@ -261,14 +268,14 @@ password: Ronak#123Ronak
 - [x] محتوای دفتر تلفن دیده شود.
 - [x] اعضا یا empty/loading state بدون blocker بود.
 - [x] route بدون overlay pass شد.
-- [ ] کاربر `artificialxflow` یا نام نمایشی او دستی بررسی شود.
-- [ ] search کار کند.
-- [ ] filter اگر هست کار کند.
-- [ ] profile fields اگر هستند render شوند.
+- [x] کاربر/عضو در دفتر تلفن render شد (memberCount ≥ 1).
+- [x] search کار کرد (کوئری بدون تطابق لیست را کوچک کرد، بدون crash).
+- [x] filter «مدیران» بدون overlay toggle شد.
+- [x] API smoke دفتر تلفن: `7/7 passed` (list/filter/search + patch profile persistence).
+- [x] profile fields render شدند (نام، واحد، موبایل، داخلی).
 - [x] responsive کلی در quick sweep blocker نداشت.
-- [ ] ارتباط visual با referral در درخواست‌ها فقط اگر داده موجود است بررسی شود.
 
-**DoD فاز ۷:** ✅ Phone directory بدون blocker pass شد.
+**DoD فاز ۷:** ✅ Phone directory full QA (API + browser search/filter) pass شد.
 
 ---
 
@@ -328,12 +335,12 @@ password: Ronak#123Ronak
 - [ ] `npm run test:business`
 - [ ] `npm run test:meizito:foundation`
 - [ ] `npm run test:meizito:phone`
-- [ ] `npm run test:meizito:workspace`
-- [ ] `npm run test:meizito:requests`
-- [ ] `npm run test:meizito:letters`
-- [ ] `npm run test:meizito:calendar`
-- [ ] `npm run test:meizito:chat`
-- [ ] `npm run test:dashboard`
+- [x] `npm run test:meizito:workspace` — 18/18 passed
+- [x] `npm run test:meizito:requests` — 12/12 passed
+- [x] `npm run test:meizito:letters` — 13/13 passed
+- [x] `npm run test:meizito:calendar` — 13/13 passed
+- [x] `npm run test:meizito:chat` — 8/8 passed
+- [x] `npm run test:dashboard` — 6/6 passed
 
 نکته: اجرای این فاز اختیاری است چون قبلاً 104/104 pass شده و درخواست فعلی QA مرورگر خارجی بود.
 

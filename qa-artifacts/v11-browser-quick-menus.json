@@ -1,5 +1,5 @@
 {
-  "date": "2026-06-21T08:58:15.963Z",
+  "date": "2026-06-21T18:31:20.895Z",
   "baseUrl": "http://localhost:3000",
   "tool": "CDP direct",
   "browser": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
@@ -26,122 +26,8 @@
       "status": "pass"
     },
     {
-      "phase": "Dashboard",
-      "name": "/dashboard/dashboard",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/dashboard"
-    },
-    {
-      "phase": "Dashboard",
-      "name": "Dashboard menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Workspace",
-      "name": "/dashboard/tasks",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/tasks"
-    },
-    {
-      "phase": "Workspace",
-      "name": "Workspace menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Calendar",
-      "name": "/dashboard/tasks?tab=calendar",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/tasks?tab=calendar"
-    },
-    {
-      "phase": "Calendar",
-      "name": "Calendar menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Chat",
-      "name": "/dashboard/chats",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/chats"
-    },
-    {
-      "phase": "Chat",
-      "name": "Chat menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Requests",
-      "name": "/dashboard/work-requests",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/work-requests"
-    },
-    {
-      "phase": "Requests",
-      "name": "Requests menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Letters",
-      "name": "/dashboard/tasks?tab=letters",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/tasks?tab=letters"
-    },
-    {
-      "phase": "Letters",
-      "name": "Letters menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Phone",
-      "name": "/dashboard/tasks?tab=phone",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/tasks?tab=phone"
-    },
-    {
-      "phase": "Phone",
-      "name": "Phone directory menu opens",
-      "status": "pass"
-    },
-    {
-      "phase": "Workspace",
-      "name": "Kanban/tab horizontal scroll sanity",
-      "status": "pass"
-    },
-    {
-      "phase": "Workspace Full QA",
-      "name": "Create task through new task modal and persist after refresh",
-      "status": "pass"
-    },
-    {
-      "phase": "Requests Full QA",
-      "name": "Create request through UI and persist after refresh",
-      "status": "pass"
-    },
-    {
-      "phase": "Letters Full QA",
-      "name": "Create letter through UI and persist after refresh",
-      "status": "pass"
-    },
-    {
-      "phase": "Calendar Full QA",
-      "name": "Create calendar event through UI and persist after refresh",
-      "status": "pass"
-    },
-    {
-      "phase": "Chat Full QA",
-      "name": "Send chat message through UI and persist after refresh",
-      "status": "fail",
-      "detail": "Chat message not visible after send. href=http://localhost:3000/dashboard/chats buttons=داشبورد | میز کار | تقویم | گفتگوها | درخواست‌ها | نامه‌ها | دفتر تلفن | فروش | تولید | بازرگانی | سازمان | مالی | سیستم | خروج از سیستم | AG_TEST_1404_1781461447154 | همه | شخصی | گروه‌ها | کانال‌ها | گفتگوی جدید | گروه جدید | کانال جدید | + گفتگوی جدید | + گروه جدید | + کانال جدید | @مدیر کل body=nexa دسترسی سریع داشبورد میز کار تقویم گفتگوها درخواست‌ها نامه‌ها دفتر تلفن فروش تولید بازرگانی سازمان مالی سیستم خروج از سیستم AG_TEST_1404_1781461447154 گفتگوها گفتگوی شخصی، گروه و کانال — یک جام برای همه مکالمات تیمی گفتگو — شخصی، گروه و کانال همه شخصی گروه‌ها کانال‌ها گفتگوی جدید گروه جدید کانال جدید گفتگویی نیست. + گفتگوی جدید + گروه جدید + کانال جدید — کانال تاریخ پیامی برای این تاریخ در این گفتگو نیست. @مدیر کل"
-    },
-    {
-      "phase": "Responsive",
-      "name": "mobile /dashboard/tasks",
-      "status": "pass",
-      "detail": "http://localhost:3000/dashboard/tasks"
-    },
-    {
-      "phase": "Responsive",
-      "name": "Mobile viewport quick menu sweep",
+      "phase": "Products Full QA",
+      "name": "Create product through UI and persist after refresh",
       "status": "pass"
     }
   ],

@@ -66,6 +66,22 @@ enum MeizitoMemberRole {
   senior_manager
 }
 
+enum CatalogProductType {
+  goods
+  services
+}
+
+enum CatalogProductStatus {
+  active
+  inactive
+}
+
+enum CatalogPriceListTier {
+  retail
+  wholesale
+  partner
+}
+
 model SystemRole {
   id          String   @id @default(cuid())
   slug        String   @unique
@@ -238,6 +254,9 @@ model Business {
   meizitoCalendarEvents MeizitoCalendarEvent[]
   chatThreads        ChatThread[]
   chatMessages       ChatMessage[]
+  catalogPriceLists  CatalogPriceList[]
+  catalogCategories  CatalogCategory[]
+  catalogProducts    CatalogProduct[]
 
   @@index([status])
   @@index([createdById])
@@ -692,4 +711,67 @@ model MeizitoApprovalStep {
   @@index([businessId, entityType, entityId])
   @@index([businessId, assigneeUserId])
   @@index([entityType, entityId])
+}
+
+model CatalogPriceList {
+  id         String                @id @default(cuid())
+  businessId String
+  name       String
+  tier       CatalogPriceListTier?
+  sortOrder  Int                   @default(0)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([businessId, sortOrder])
+}
+
+model CatalogCategory {
+  id         String   @id @default(cuid())
+  businessId String
+  name       String
+  parentId   String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  parent   CatalogCategory?  @relation("CatalogCategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children CatalogCategory[] @relation("CatalogCategoryTree")
+
+  @@index([businessId])
+  @@index([businessId, parentId])
+  @@index([businessId, sortOrder])
+}
+
+model CatalogProduct {
+  id                  String               @id @default(cuid())
+  businessId          String
+  accountingCode      String
+  name                String
+  code                String               @default("")
+  type                CatalogProductType     @default(goods)
+  categoryIds         Json                 @default("[]")
+  barcode             String?
+  images              Json                 @default("{}")
+  salesDescription    String?
+  purchaseDescription String?
+  prices              Json                 @default("{}")
+  purchasePrice       Int                  @default(0)
+  units               Json                 @default("{}")
+  inventory           Json                 @default("{}")
+  tax                 Json                 @default("{}")
+  status              CatalogProductStatus @default(active)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, accountingCode])
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, name])
+  @@index([businessId, type])
 }
