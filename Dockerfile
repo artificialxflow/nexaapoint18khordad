@@ -32,7 +32,7 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends openssl ca-certificates \
+  && apt-get install -y --no-install-recommends openssl ca-certificates login \
   && rm -rf /var/lib/apt/lists/* \
   && groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs
@@ -48,7 +48,9 @@ COPY --from=migrate /app/node_modules /prisma-cli/node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/preflight.js /preflight.js
 
-RUN chmod +x /entrypoint.sh \
+# Windows checkouts often add CRLF — breaks exec /entrypoint.sh (no such file or directory).
+RUN sed -i 's/\r$//' /entrypoint.sh \
+  && chmod +x /entrypoint.sh \
   && chown -R nextjs:nodejs /app
 
 EXPOSE 3000
@@ -56,4 +58,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
