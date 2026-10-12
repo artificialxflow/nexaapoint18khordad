@@ -45,6 +45,9 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=migrate /app/node_modules /prisma-cli/node_modules
+# Fail the image build if Prisma query engine for Linux is missing (migrate would hang/fail at runtime).
+RUN test -d /prisma-cli/node_modules/.prisma/client \
+  && ls /prisma-cli/node_modules/.prisma/client/libquery_engine-*.so.node >/dev/null
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/preflight.js /preflight.js
 COPY docker/startup-shim.js /startup-shim.js

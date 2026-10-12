@@ -1,12 +1,14 @@
 /**
- * prisma migrate deploy with cwd=/app and flushed logging (Runflare/k8s diagnostics).
+ * prisma migrate deploy with cwd=/app, heartbeat logs, and optional timeout.
  */
-const { spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 const schema = '/app/prisma/schema.prisma';
 const cli = '/prisma-cli/node_modules/prisma/build/index.js';
+const timeoutMs = Number(process.env.MIGRATE_TIMEOUT_MS || 300_000);
+const heartbeatMs = Number(process.env.MIGRATE_HEARTBEAT_MS || 10_000);
 
 if (!fs.existsSync(schema)) {
   console.error('[migrate] ERROR: schema missing at', schema);
@@ -29,21 +31,50 @@ try {
 process.chdir('/app');
 console.log('[migrate] running: node prisma/build/index.js migrate deploy');
 console.log('[migrate] cwd=', process.cwd());
+console.log('[migrate] timeout_ms=', timeoutMs);
 
-const result = spawnSync(process.execPath, [cli, 'migrate', 'deploy', `--schema=${schema}`], {
+const env = { ...process.env };
+// Single-replica Runflare: avoid stuck migrate after pod SIGKILL mid-deploy.
+if (env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK == null) {
+  env.PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK = '1';
+  console.log('[migrate] PRISMA_SCHEMA_DISABLE_ADVISORY_LOCK=1 (default for single replica)');
+}
+
+const child = spawn(process.execPath, [cli, 'migrate', 'deploy', `--schema=${schema}`], {
   stdio: 'inherit',
-  env: process.env,
+  env,
 });
 
-if (result.error) {
-  console.error('[migrate] spawn error:', result.error.message);
+const started = Date.now();
+const heartbeat = setInterval(() => {
+  const elapsed = Math.round((Date.now() - started) / 1000);
+  console.log(`[migrate] still running... elapsed=${elapsed}s`);
+}, heartbeatMs);
+
+const timer = setTimeout(() => {
+  console.error(`[migrate] ERROR: timed out after ${timeoutMs}ms — killing prisma`);
+  child.kill('SIGKILL');
+}, timeoutMs);
+
+child.on('error', (err) => {
+  clearInterval(heartbeat);
+  clearTimeout(timer);
+  console.error('[migrate] spawn error:', err.message);
   process.exit(1);
-}
+});
 
-if (result.status !== 0) {
-  console.error('[migrate] exit code:', result.status ?? 'null');
-  if (result.signal) console.error('[migrate] signal:', result.signal);
-  process.exit(result.status ?? 1);
-}
+child.on('close', (code, signal) => {
+  clearInterval(heartbeat);
+  clearTimeout(timer);
 
-console.log('[migrate] prisma migrate deploy finished successfully');
+  if (signal) {
+    console.error('[migrate] killed with signal:', signal);
+    process.exit(1);
+  }
+  if (code !== 0) {
+    console.error('[migrate] exit code:', code);
+    process.exit(code ?? 1);
+  }
+  console.log('[migrate] prisma migrate deploy finished successfully');
+  process.exit(0);
+});
