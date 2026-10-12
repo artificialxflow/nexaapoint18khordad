@@ -28,8 +28,20 @@ if [ ! -f "$PRISMA_CLI" ]; then
   exit 1
 fi
 
+if [ ! -f /preflight.js ]; then
+  echo "[entrypoint] ERROR: /preflight.js missing — rebuild Docker image" >&2
+  exit 1
+fi
+
+echo "[entrypoint] running database preflight (TCP + env)..."
+node /preflight.js
+
 echo "[entrypoint] prisma migrate deploy..."
-node "$PRISMA_CLI" migrate deploy --schema="$SCHEMA"
+if ! node "$PRISMA_CLI" migrate deploy --schema="$SCHEMA"; then
+  echo "[entrypoint] ERROR: prisma migrate deploy failed — check [preflight] lines and P100x above" >&2
+  exit 1
+fi
+echo "[entrypoint] prisma migrate deploy OK"
 
 echo "[entrypoint] starting Next.js standalone on ${HOSTNAME}:${PORT}..."
 cd /app

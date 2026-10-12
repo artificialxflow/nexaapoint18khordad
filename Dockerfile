@@ -46,6 +46,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=migrate /app/node_modules /prisma-cli/node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
+COPY docker/preflight.js /preflight.js
 
 RUN chmod +x /entrypoint.sh \
   && chown -R nextjs:nodejs /app
