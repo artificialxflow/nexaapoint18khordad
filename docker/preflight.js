@@ -91,6 +91,23 @@ async function main() {
     console.error('[preflight] WARNING: DIRECT_URL TCP failed but DATABASE_URL OK — migrate may still work.');
   }
 
+  const secret = process.env.AUTH_SESSION_SECRET ?? '';
+  if (secret.length < 32) {
+    console.error(
+      `[preflight] ERROR: AUTH_SESSION_SECRET must be at least 32 characters (got ${secret.length})`,
+    );
+    console.error('[preflight] Set it in Runflare → Environment → Runtime');
+    process.exit(1);
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? '';
+  if (!appUrl) {
+    console.error('[preflight] ERROR: NEXT_PUBLIC_APP_URL is not set (Build + Runtime on Runflare)');
+    process.exit(1);
+  }
+  console.log(`[preflight] NEXT_PUBLIC_APP_URL=${appUrl}`);
+  console.log(`[preflight] AUTH_SESSION_SECRET length=${secret.length} OK`);
+
   console.log('[preflight] preflight OK — proceeding to prisma migrate deploy');
 }
 

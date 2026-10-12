@@ -47,6 +47,8 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 COPY --from=migrate /app/node_modules /prisma-cli/node_modules
 COPY docker/entrypoint.sh /entrypoint.sh
 COPY docker/preflight.js /preflight.js
+COPY docker/startup-shim.js /startup-shim.js
+COPY docker/migrate-deploy.js /migrate-deploy.js
 
 # Windows checkouts often add CRLF — breaks exec /entrypoint.sh (no such file or directory).
 RUN sed -i 's/\r$//' /entrypoint.sh \
@@ -55,7 +57,7 @@ RUN sed -i 's/\r$//' /entrypoint.sh \
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 ENTRYPOINT ["/bin/sh", "/entrypoint.sh"]
